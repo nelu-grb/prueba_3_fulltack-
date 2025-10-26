@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Row, Col, Card, Button, Alert } from "react-bootstrap";
 import { useParams, useRouter } from "next/navigation";
-import { todosLosProductos, Producto } from "../Data";
+import { todosLosProductos, Producto } from "../../Data";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 const getProductById = (id: number): Producto | undefined => {
