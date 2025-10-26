@@ -1,27 +1,26 @@
 const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
-const chromedriver = require("chromedriver"); // ✅ usa el binario instalado por npm
+const chromedriver = require("chromedriver"); // ← binario correcto (v140)
 
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 
 describe("Flujo carrito - agregar y pagar", function () {
-  this.timeout(90000); // un poco más de tiempo por latencias en CI
+  this.timeout(90000);
   let driver;
 
   before(async () => {
+    // 🔒 Fuerza a Selenium a usar ESTE chromedriver (no el del sistema)
+    chrome.setDefaultService(new chrome.ServiceBuilder(chromedriver.path).build());
+
     const options = new chrome.Options().addArguments(
       "--headless=new",
       "--no-sandbox",
       "--disable-dev-shm-usage"
     );
 
-    // ✅ Fuerza a usar el ChromeDriver que coincide con la versión de Chrome del runner
-    const service = new chrome.ServiceBuilder(chromedriver.path).build();
-
     driver = await new Builder()
       .forBrowser("chrome")
       .setChromeOptions(options)
-      .setChromeService(service) // ⬅ importante
       .build();
   });
 
@@ -41,10 +40,7 @@ describe("Flujo carrito - agregar y pagar", function () {
   });
 
   it("Agrega el primer producto", async () => {
-    // intenta sumar 1 si existe el botón +
-    const plusBtn = By.xpath(
-      "(//button[contains(@class,'outline-primary') and .//i[contains(@class,'fa-plus')]])[1]"
-    );
+    const plusBtn = By.xpath("(//button[contains(@class,'outline-primary') and .//i[contains(@class,'fa-plus')]])[1]");
     try { await driver.findElement(plusBtn).click(); } catch {}
 
     const addBtn = By.xpath("(//button[contains(.,'Añadir') or contains(.,'Agregar')])[1]");
