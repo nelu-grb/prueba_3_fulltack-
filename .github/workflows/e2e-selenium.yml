@@ -1,0 +1,26 @@
+name: E2E Selenium (Vercel Prod)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: browser-actions/setup-chrome@v1
+
+      - name: Run Selenium Tests
+        env:
+          BASE_URL: https://prueba-finalmente.vercel.app
+        run: pnpm test:e2e
