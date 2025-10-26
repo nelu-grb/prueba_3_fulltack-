@@ -7,20 +7,28 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
+      # Instala pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # Node + cache de pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Install deps
         run: pnpm install --frozen-lockfile
 
+      # Instala Chrome para Selenium
       - uses: browser-actions/setup-chrome@v1
 
-      - name: Run Selenium Tests
+      - name: Run Selenium tests (Prod)
         env:
           BASE_URL: https://prueba-finalmente.vercel.app
         run: pnpm test:e2e
