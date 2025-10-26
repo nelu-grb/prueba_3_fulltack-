@@ -1,7 +1,7 @@
+process.env.WEBDRIVER_MANAGER_VERSION = "true";
 const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 
-// Usa tu dominio de Vercel si no pasas BASE_URL
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 
 describe("Flujo carrito - agregar y pagar", function () {
