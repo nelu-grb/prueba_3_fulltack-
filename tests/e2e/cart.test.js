@@ -1,6 +1,6 @@
 const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
-const chromedriver = require("chromedriver"); // ← binario correcto (v140)
+const chromedriver = require("chromedriver");
 
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 
@@ -9,18 +9,19 @@ describe("Flujo carrito - agregar y pagar", function () {
   let driver;
 
   before(async () => {
-    // 🔒 Fuerza a Selenium a usar ESTE chromedriver (no el del sistema)
-    chrome.setDefaultService(new chrome.ServiceBuilder(chromedriver.path).build());
-
     const options = new chrome.Options().addArguments(
       "--headless=new",
       "--no-sandbox",
       "--disable-dev-shm-usage"
     );
 
+    // ✅ usa el binario de chromedriver instalado por npm (v140)
+    const service = new chrome.ServiceBuilder(chromedriver.path);
+
     driver = await new Builder()
       .forBrowser("chrome")
       .setChromeOptions(options)
+      .setChromeService(service) // ← esta es la clave
       .build();
   });
 
