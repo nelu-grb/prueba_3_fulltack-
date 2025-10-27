@@ -1,25 +1,45 @@
-const { buildDesktopDriver, helpers } = require("./support/driver");
+process.env.WEBDRIVER_MANAGER_VERSION = "true";
+const { Builder, By, until } = require("selenium-webdriver");
+const chrome = require("selenium-webdriver/chrome");
+
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
+const opts = new chrome.Options().addArguments(
+  "--headless=new",
+  "--no-sandbox",
+  "--disable-dev-shm-usage"
+);
 
 describe("Búsqueda de producto (si existe buscador)", function () {
-  this.timeout(120000);
-  let driver, h;
+  this.timeout(60000);
+  let driver;
 
-  before(async () => { driver = await buildDesktopDriver(); h = helpers(driver); });
-  after(async () => { if (driver) await driver.quit(); });
+  before(async () => {
+    driver = await new Builder().forBrowser("chrome").setChromeOptions(opts).build();
+  });
 
-  it("Filtra productos al buscar 'gorra' (si hay buscador)", async () => {
-    await driver.get(`${BASE_URL}/inventario`);
-    const searchCandidates = [
-      h.By.css("input[type='search']"),
-      h.By.css("input[placeholder*='Buscar' i]"),
-      h.By.css("[data-testid='search'] input, [data-testid='search']")
+  after(async () => {
+    if (driver) await driver.quit();
+  });
+
+  it("Filtra productos al buscar 'gorra' (si hay buscador)", async function () {
+    await driver.get(BASE_URL);
+
+    const linkProductos = By.xpath("//a[contains(.,'Productos')]");
+    await driver.wait(until.elementLocated(linkProductos), 15000);
+    await driver.findElement(linkProductos).click();
+
+    const candidates = [
+      "input[type='search']",
+      "input[placeholder*='Buscar' i]",
+      "[role='search'] input"
     ];
-
     let searchEl = null;
-    for (const loc of searchCandidates) {
-      const els = await driver.findElements(loc);
-      if (els.length) { searchEl = els[0]; break; }
+    for (const css of candidates) {
+      const found = await driver.findElements(By.css(css));
+      if (found.length) {
+        searchEl = found[0];
+        break;
+      }
     }
 
     if (!searchEl) {
@@ -28,9 +48,15 @@ describe("Búsqueda de producto (si existe buscador)", function () {
       return;
     }
 
+    await searchEl.clear();
     await searchEl.sendKeys("gorra");
-    const card = h.By.xpath("//div[contains(@class,'product-card')]");
-    // Con que exista una card visible tras teclear, damos OK
-    await h.waitVisible(card);
+
+    const anyCard = By.css(".product-card, .card");
+    await driver.wait(until.elementLocated(anyCard), 15000);
+
+    const cards = await driver.findElements(anyCard);
+    if (!cards.length) {
+      throw new Error("No se encontraron resultados tras buscar.");
+    }
   });
 });
