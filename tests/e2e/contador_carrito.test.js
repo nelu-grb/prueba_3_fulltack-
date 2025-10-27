@@ -8,28 +8,24 @@ describe("Badge del carrito en header", function () {
   before(async () => { driver = await buildDesktopDriver(); h = helpers(driver); });
   after(async () => { if (driver) await driver.quit(); });
 
-  it("Aumenta al añadir un producto desde inventario", async () => {
-    await driver.get(BASE_URL);
-    await h.waitGone(h.By.id("loading")).catch(() => {});
+  it("Aumenta al añadir un producto", async () => {
+    await driver.get(`${BASE_URL}/inventario`);
 
-    // Ir a Productos
-    await h.clickSafe(h.By.xpath("//nav//a[contains(.,'Productos')]"));
-    await h.waitUrlContains("/inventario");
-
-    // Lee contador actual
     const badge = await h.waitVisible(h.By.id("cart-count-desktop"));
     const before = parseInt(await badge.getText(), 10) || 0;
 
-    // Click en "Añadir" de la primera card
-    const addBtnInFirstCard = h.By.xpath(
-      "(//div[contains(@class,'product-card')])[1]//button[contains(.,'Añadir') or contains(.,'Agregar')]"
-    );
-    await h.clickSafe(addBtnInFirstCard);
+    // Sube cantidad y añade
+    const plusBtn = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[.//i[contains(@class,'fa-plus')]]");
+    const addBtn  = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[contains(.,'Añadir') or contains(.,'Agregar')]");
+    await h.clickSafe(plusBtn);
+    await h.clickSafe(addBtn);
 
-    // Vuelve a leer
+    // Relee badge
     const badge2 = await h.waitVisible(h.By.id("cart-count-desktop"));
     const after = parseInt(await badge2.getText(), 10) || 0;
 
-    if (!(after > before)) throw new Error(`Esperaba after(${after}) > before(${before})`);
+    if (!(after > before)) {
+      throw new Error(`Esperaba after(${after}) > before(${before})`);
+    }
   });
 });
