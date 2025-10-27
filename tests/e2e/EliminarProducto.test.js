@@ -10,22 +10,42 @@ describe("Eliminar producto del carrito", function () {
 
   it("Elimina correctamente un producto del carrito", async () => {
     await driver.get(`${BASE_URL}/inventario`);
-    await h.waitVisible(h.By.xpath("//button[contains(.,'Añadir') or contains(.,'Agregar')]"));
-    await h.clickSafe(h.By.xpath("(//button[contains(.,'Añadir') or contains(.,'Agregar')])[1]"));
 
-    // Ir al carrito
-    await h.clickSafe(h.By.xpath("//a[contains(.,'Mi carrito') or contains(.,'carrito')]"));
+    // Asegura que se añada al menos 1
+    const plusBtn = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[.//i[contains(@class,'fa-plus')]]");
+    const addBtn  = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[contains(.,'Añadir') or contains(.,'Agregar')]");
+    await h.clickSafe(plusBtn);
+    await h.clickSafe(addBtn);
+
+    // Ir a carrito
+    await h.clickSafe(h.By.xpath("//a[contains(.,'carrito') or contains(.,'Carrito')]"));
     await h.waitUrlContains("/pago");
 
-    // Contar ítems antes de eliminar
     const itemsAntes = await driver.findElements(h.By.css(".carrito-item"));
-    const botonEliminar = h.By.xpath("(//button[contains(.,'Eliminar')])[1]");
-    await h.clickSafe(botonEliminar);
+    if (itemsAntes.length === 0) throw new Error("No hay items en el carrito");
 
-    await h.waitGone(h.By.css(".carrito-item"));
+    // Botón eliminar: “Eliminar”, “Quitar” o ícono de trash
+    const deleteLocators = [
+      h.By.xpath("(//button[contains(.,'Eliminar')])[1]"),
+      h.By.xpath("(//button[contains(.,'Quitar')])[1]"),
+      h.By.xpath("(//button[.//i[contains(@class,'fa-trash')]])[1]")
+    ];
+    let deleted = false;
+    for (const loc of deleteLocators) {
+      const els = await driver.findElements(loc);
+      if (els.length) {
+        await h.clickSafe(loc);
+        deleted = true;
+        break;
+      }
+    }
+    if (!deleted) throw new Error("No encontré el botón Eliminar/Quitar");
 
+    // Espera a que baje la cantidad de filas
+    await new Promise(r => setTimeout(r, 800));
     const itemsDespues = await driver.findElements(h.By.css(".carrito-item"));
-    if (itemsDespues.length >= itemsAntes.length)
-      throw new Error("El producto no se eliminó correctamente del carrito");
+    if (!(itemsDespues.length < itemsAntes.length)) {
+      throw new Error("El producto no se eliminó del carrito");
+    }
   });
 });
