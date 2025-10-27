@@ -1,51 +1,61 @@
-const { buildDesktopDriver, helpers } = require("./support/driver");
+process.env.WEBDRIVER_MANAGER_VERSION = "true";
+const { Builder, By, until } = require("selenium-webdriver");
+const chrome = require("selenium-webdriver/chrome");
+
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
+const opts = new chrome.Options().addArguments(
+  "--headless=new",
+  "--no-sandbox",
+  "--disable-dev-shm-usage"
+);
+
+const sel = {
+  linkProductos: By.xpath("//a[contains(.,'Productos')]"),
+  anyAddBtn: By.xpath("(//button[contains(.,'Añadir') or contains(.,'Agregar')])[1]"),
+  linkCarrito: By.xpath("//a[contains(.,'Mi carrito') or contains(.,'carrito')]"),
+  cartItemCard: By.xpath("//main//div[contains(@class,'shadow-sm') and .//img]"),
+  deleteBtnFirst: By.xpath("(//button[.//i[contains(@class,'fa-times')]])[1]")
+};
 
 describe("Eliminar producto del carrito", function () {
-  this.timeout(120000);
-  let driver, h;
+  this.timeout(60000);
+  let driver;
 
-  before(async () => { driver = await buildDesktopDriver(); h = helpers(driver); });
-  after(async () => { if (driver) await driver.quit(); });
+  before(async () => {
+    driver = await new Builder().forBrowser("chrome").setChromeOptions(opts).build();
+  });
+
+  after(async () => {
+    if (driver) await driver.quit();
+  });
 
   it("Elimina correctamente un producto del carrito", async () => {
-    await driver.get(`${BASE_URL}/inventario`);
+    await driver.get(BASE_URL);
 
-    // Asegura que se añada al menos 1
-    const plusBtn = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[.//i[contains(@class,'fa-plus')]]");
-    const addBtn  = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[contains(.,'Añadir') or contains(.,'Agregar')]");
-    await h.clickSafe(plusBtn);
-    await h.clickSafe(addBtn);
+    await driver.wait(until.elementLocated(sel.linkProductos), 15000);
+    await driver.findElement(sel.linkProductos).click();
 
-    // Ir a carrito
-    await h.clickSafe(h.By.xpath("//a[contains(.,'carrito') or contains(.,'Carrito')]"));
-    await h.waitUrlContains("/pago");
+    await driver.wait(until.elementLocated(sel.anyAddBtn), 15000);
+    await driver.findElement(sel.anyAddBtn).click();
 
-    const itemsAntes = await driver.findElements(h.By.css(".carrito-item"));
-    if (itemsAntes.length === 0) throw new Error("No hay items en el carrito");
+    await driver.wait(until.elementLocated(sel.linkCarrito), 15000);
+    await driver.findElement(sel.linkCarrito).click();
 
-    // Botón eliminar: “Eliminar”, “Quitar” o ícono de trash
-    const deleteLocators = [
-      h.By.xpath("(//button[contains(.,'Eliminar')])[1]"),
-      h.By.xpath("(//button[contains(.,'Quitar')])[1]"),
-      h.By.xpath("(//button[.//i[contains(@class,'fa-trash')]])[1]")
-    ];
-    let deleted = false;
-    for (const loc of deleteLocators) {
-      const els = await driver.findElements(loc);
-      if (els.length) {
-        await h.clickSafe(loc);
-        deleted = true;
-        break;
-      }
-    }
-    if (!deleted) throw new Error("No encontré el botón Eliminar/Quitar");
+    await driver.wait(until.elementLocated(sel.cartItemCard), 15000);
+    let before = (await driver.findElements(sel.cartItemCard)).length;
+    if (!before) throw new Error("No hay items en el carrito");
 
-    // Espera a que baje la cantidad de filas
-    await new Promise(r => setTimeout(r, 800));
-    const itemsDespues = await driver.findElements(h.By.css(".carrito-item"));
-    if (!(itemsDespues.length < itemsAntes.length)) {
-      throw new Error("El producto no se eliminó del carrito");
+    await driver.wait(until.elementLocated(sel.deleteBtnFirst), 15000);
+    await driver.findElement(sel.deleteBtnFirst).click();
+
+    await driver.wait(async () => {
+      const count = (await driver.findElements(sel.cartItemCard)).length;
+      return count < before || count === 0;
+    }, 15000);
+
+    const after = (await driver.findElements(sel.cartItemCard)).length;
+    if (!(after < before)) {
+      throw new Error(`Esperaba after(${after}) < before(${before})`);
     }
   });
 });
