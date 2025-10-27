@@ -74,7 +74,7 @@ describe("Registro y acceso", function () {
     await waitFor(async () => {
       const s = await driver.executeScript("return sessionStorage.getItem('sesionActiva')");
       if (!s) return false;
-      try { const o = JSON.parse(s); return o && o.activo === true && o.correo === arguments[0]; } catch { return false; }
-    }.bind(null, email), 30000, 300);
+      try { const o = JSON.parse(s); return o && o.activo === true && o.correo === email; } catch { return false; }
+    }, 30000, 300);
   });
 });
