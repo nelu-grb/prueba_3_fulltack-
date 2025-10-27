@@ -17,11 +17,6 @@ async function addFromDetail(driver) {
   const firstCardLink = By.xpath("(//div[contains(@class,'product-card')])[1]//a[1]");
   await driver.wait(until.elementLocated(firstCardLink), 20000);
   await clickSmart(driver, await driver.findElement(firstCardLink));
-
-  const plus = By.xpath("//button[.//i[contains(@class,'fa-plus')]]");
-  await driver.wait(until.elementLocated(plus), 20000);
-  await clickSmart(driver, await driver.findElement(plus));
-
   const addBtn = By.xpath("//button[contains(.,'Añadir') or contains(.,'Agregar')]");
   await driver.wait(until.elementLocated(addBtn), 20000);
   await clickSmart(driver, await driver.findElement(addBtn));
@@ -56,11 +51,10 @@ describe("Actualización de total al cambiar cantidad", function () {
     };
     const total1 = await readTotal();
 
-    const plusInCartLocator = By.xpath("(//button[.//i[contains(@class,'fa-plus')]])[1]");
-    await driver.wait(until.elementLocated(plusInCartLocator), 20000);
-    const plusEl = await driver.findElement(plusInCartLocator);
-    await clickSmart(driver, plusEl);
+    await addFromDetail(driver);
 
+    await driver.get(`${BASE_URL}/pago`);
+    await driver.wait(until.elementLocated(totalBtnLocator), 20000);
     await driver.wait(async () => {
       const t2 = await readTotal();
       return t2 > total1;
