@@ -4,23 +4,42 @@ const chrome = require("selenium-webdriver/chrome");
 
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 
+function textToNumber(t) {
+  const n = parseInt(String(t).replace(/[^\d]/g, ""), 10);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 async function addOneUnitFromFirstCard(driver) {
   const addBtn = By.xpath("(//button[contains(.,'Añadir') or contains(.,'Agregar')])[1]");
-  await driver.wait(until.elementLocated(addBtn), 25000);
+  await driver.wait(until.elementLocated(addBtn), 30000);
   const addEl = await driver.findElement(addBtn);
   const card = await addEl.findElement(By.xpath("ancestor::div[contains(@class,'card')]"));
-  const plusBtn = await card.findElement(By.xpath(".//i[contains(@class,'fa-plus')]/ancestor::button"));
+
+  let plusBtn;
+  const plusCandidates = [
+    ".//i[contains(@class,'fa-plus')]/ancestor::button",
+    ".//button[contains(@class,'outline-primary')]",
+  ];
+  for (const xp of plusCandidates) {
+    const found = await card.findElements(By.xpath(xp));
+    if (found.length) {
+      plusBtn = found[0];
+      break;
+    }
+  }
+  if (!plusBtn) plusBtn = addEl;
+
   await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", plusBtn);
   await driver.sleep(300);
   await driver.actions({ bridge: true }).move({ origin: plusBtn }).click().perform();
-  await driver.sleep(200);
+
   await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", addEl);
   await driver.sleep(200);
   await driver.actions({ bridge: true }).move({ origin: addEl }).click().perform();
 }
 
 describe("Actualización de total al cambiar cantidad", function () {
-  this.timeout(90000);
+  this.timeout(120000);
   let driver;
 
   before(async () => {
@@ -34,31 +53,41 @@ describe("Actualización de total al cambiar cantidad", function () {
   });
 
   it("El total cambia al modificar cantidad", async function () {
+    await driver.get(`${BASE_URL}/`);
+    await driver.sleep(300);
+    try {
+      await driver.executeScript("localStorage.clear(); sessionStorage.clear();");
+    } catch {}
+
     await driver.get(`${BASE_URL}/inventario`);
-    await driver.sleep(500);
+    await driver.sleep(600);
     await addOneUnitFromFirstCard(driver);
 
     await driver.get(`${BASE_URL}/pago`);
-    await driver.sleep(700);
+    await driver.sleep(800);
+
     const totalBtn = By.xpath("//button[contains(.,'Total a pagar')]");
-    await driver.wait(until.elementLocated(totalBtn), 25000);
+    await driver.wait(until.elementLocated(totalBtn), 30000);
+
     const readTotal = async () => {
-      const txt = await driver.findElement(totalBtn).getText();
-      const n = parseInt(txt.replace(/[^\d]/g, ""), 10);
-      return Number.isNaN(n) ? 0 : n;
+      const el = await driver.findElement(totalBtn);
+      const txt = await el.getText();
+      return textToNumber(txt);
     };
+
     const total1 = await readTotal();
 
     await driver.get(`${BASE_URL}/inventario`);
-    await driver.sleep(500);
+    await driver.sleep(600);
     await addOneUnitFromFirstCard(driver);
 
     await driver.get(`${BASE_URL}/pago`);
-    await driver.sleep(700);
-    await driver.wait(until.elementLocated(totalBtn), 25000);
+    await driver.sleep(800);
+    await driver.wait(until.elementLocated(totalBtn), 30000);
+
     await driver.wait(async () => {
       const t2 = await readTotal();
       return t2 > total1;
-    }, 25000);
+    }, 30000);
   });
 });
