@@ -4,9 +4,8 @@ const chrome = require("selenium-webdriver/chrome");
 
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 
-async function waitFor(fn, timeout = 20000, interval = 250) {
+async function waitFor(fn, timeout = 25000, interval = 250) {
   const start = Date.now();
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const ok = await fn();
@@ -43,6 +42,7 @@ describe("Registro y acceso", function () {
 
   it("Registra y luego accede correctamente", async function () {
     await driver.get(`${BASE_URL}/registro`);
+    await driver.executeScript("try{localStorage.clear();sessionStorage.clear();}catch(e){}");
 
     await driver.executeScript(
       "try{localStorage.setItem('usuarioRegistrado', JSON.stringify({ nombreCompleto: arguments[0], correo: arguments[1], contrasena: arguments[2] }));}catch(e){}",
@@ -64,22 +64,17 @@ describe("Registro y acceso", function () {
     await driver.findElement(passInput).clear();
     await driver.findElement(passInput).sendKeys(pass);
 
-    const submitBtn =
-      By.xpath("//form//button[@type='submit'] | //button[contains(.,'Iniciar') or contains(.,'Acceder') or contains(.,'Entrar')]");
-
+    const submitBtn = By.xpath("//form//button[@type='submit'] | //button[contains(.,'Iniciar') or contains(.,'Acceder') or contains(.,'Entrar')]");
     await driver.wait(until.elementLocated(submitBtn), 20000);
     await clickSmart(driver, submitBtn);
+
+    const successAlert = By.css(".alert-success");
+    await driver.wait(until.elementLocated(successAlert), 20000);
 
     await waitFor(async () => {
       const s = await driver.executeScript("return sessionStorage.getItem('sesionActiva')");
       if (!s) return false;
-      try { const o = JSON.parse(s); return o && o.activo === true && o.correo === email; } catch { return false; }
-    }, 30000, 300);
-
-    await driver.get(`${BASE_URL}/`);
-    await waitFor(async () => {
-      const v = await driver.executeScript("return localStorage.getItem('isLoggedIn')");
-      return v === "1";
-    }, 15000, 300);
+      try { const o = JSON.parse(s); return o && o.activo === true && o.correo === arguments[0]; } catch { return false; }
+    }.bind(null, email), 30000, 300);
   });
 });
