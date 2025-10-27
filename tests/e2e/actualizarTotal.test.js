@@ -1,4 +1,4 @@
-const { Builder, By, until } = require("selenium-webdriver");
+const { Builder, By, until, Key } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
@@ -10,7 +10,7 @@ describe("Actualización de total al cambiar cantidad", function () {
   before(async () => {
     const options = new chrome.Options().addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage");
     driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
-    try { await driver.manage().window().setRect({ width: 1366, height: 900 }); } catch {}
+    await driver.manage().window().setRect({ width: 1366, height: 900 });
   });
 
   after(async () => {
@@ -22,10 +22,9 @@ describe("Actualización de total al cambiar cantidad", function () {
     const addBtn = By.xpath("(//button[contains(.,'Añadir') or contains(.,'Agregar')])[1]");
     await driver.wait(until.elementLocated(addBtn), 15000);
     const el = await driver.findElement(addBtn);
-    await driver.executeScript("arguments[0].scrollIntoView(true);", el);
-    await driver.wait(until.elementIsVisible(el), 5000);
+    await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", el);
     await driver.sleep(500);
-    await el.click();
+    await driver.actions({ bridge: true }).move({ origin: el }).click().perform();
 
     await driver.get(`${BASE_URL}/pago`);
     const totalBtn = By.xpath("//button[contains(.,'Total a pagar')]");
@@ -38,11 +37,11 @@ describe("Actualización de total al cambiar cantidad", function () {
     const before = await readTotal();
 
     const plusBtn = By.xpath("(//button[.//i[contains(@class,'fa-plus')]])[1]");
+    await driver.wait(until.elementLocated(plusBtn), 15000);
     const plusEl = await driver.findElement(plusBtn);
-    await driver.executeScript("arguments[0].scrollIntoView(true);", plusEl);
-    await driver.wait(until.elementIsVisible(plusEl), 5000);
+    await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", plusEl);
     await driver.sleep(500);
-    await plusEl.click();
+    await driver.actions({ bridge: true }).move({ origin: plusEl }).click().perform();
 
     await driver.wait(async () => {
       const now = await readTotal();
