@@ -33,12 +33,11 @@ describe("Registro y acceso", function () {
       "localStorage.setItem('usuarioRegistrado', JSON.stringify({ nombreCompleto: arguments[0], correo: arguments[1], contrasena: arguments[2] }));",
       nombre, email, pass
     );
-    const savedOk = await driver.wait(async () => {
+    await driver.wait(async () => {
       const s = await driver.executeScript("return localStorage.getItem('usuarioRegistrado')");
       if (!s) return false;
       try { const o = JSON.parse(s); return o && o.correo === arguments[0]; } catch { return false; }
-    }, 15000, "", email);
-    if (!savedOk) throw new Error("usuarioRegistrado no fue creado");
+    }, 15000, "");
 
     await driver.get(`${BASE_URL}/acceso`);
     const mailInput = (await driver.findElements(By.css("input[type='email']")))[0];
@@ -54,6 +53,6 @@ describe("Registro y acceso", function () {
       const s = await driver.executeScript("return sessionStorage.getItem('sesionActiva')");
       if (!s) return false;
       try { const o = JSON.parse(s); return o && o.activo && o.correo === arguments[0]; } catch { return false; }
-    }, 20000, "", email);
+    }, 20000, "");
   });
 });
