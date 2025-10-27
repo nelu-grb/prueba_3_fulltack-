@@ -7,33 +7,24 @@ const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 async function clickSmart(driver, el) {
   await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", el);
   await driver.wait(until.elementIsVisible(el), 15000);
-  await driver.wait(until.elementIsEnabled(el), 15000);
+  try { await el.click(); return; } catch {}
   try { await driver.actions({ bridge: true }).move({ origin: el }).click().perform(); return; } catch {}
-  try { await el.click(); return; } catch {}
-  await driver.executeScript("window.scrollBy(0, -120);");
-  await driver.sleep(200);
-  try { await el.click(); return; } catch {}
   await driver.executeScript("arguments[0].click();", el);
 }
 
 async function addFromDetail(driver) {
   await driver.get(`${BASE_URL}/inventario`);
-  const firstCard = By.xpath("(//div[contains(@class,'product-card')])[1]");
-  await driver.wait(until.elementLocated(firstCard), 20000);
-  const link = By.xpath("(//div[contains(@class,'product-card')])[1]//a[1]");
-  await driver.wait(until.elementLocated(link), 20000);
-  const a = await driver.findElement(link);
-  await clickSmart(driver, a);
+  const firstCardLink = By.xpath("(//div[contains(@class,'product-card')])[1]//a[1]");
+  await driver.wait(until.elementLocated(firstCardLink), 20000);
+  await clickSmart(driver, await driver.findElement(firstCardLink));
 
   const plus = By.xpath("//button[.//i[contains(@class,'fa-plus')]]");
   await driver.wait(until.elementLocated(plus), 20000);
-  const plusEl = await driver.findElement(plus);
-  await clickSmart(driver, plusEl);
+  await clickSmart(driver, await driver.findElement(plus));
 
   const addBtn = By.xpath("//button[contains(.,'Añadir') or contains(.,'Agregar')]");
   await driver.wait(until.elementLocated(addBtn), 20000);
-  const addEl = await driver.findElement(addBtn);
-  await clickSmart(driver, addEl);
+  await clickSmart(driver, await driver.findElement(addBtn));
 }
 
 describe("Actualización de total al cambiar cantidad", function () {
@@ -53,19 +44,21 @@ describe("Actualización de total al cambiar cantidad", function () {
     await driver.executeScript("localStorage.clear(); sessionStorage.clear();");
 
     await addFromDetail(driver);
+
     await driver.get(`${BASE_URL}/pago`);
-    const totalBtn = By.xpath("//button[contains(.,'Total a pagar')]");
-    await driver.wait(until.elementLocated(totalBtn), 20000);
+    const totalBtnLocator = By.xpath("//button[contains(.,'Total a pagar')]");
+    await driver.wait(until.elementLocated(totalBtnLocator), 20000);
     const readTotal = async () => {
-      const txt = await driver.findElement(totalBtn).getText();
+      const el = await driver.findElement(totalBtnLocator);
+      const txt = await el.getText();
       const n = parseInt(txt.replace(/[^\d]/g, ""), 10);
       return Number.isNaN(n) ? 0 : n;
     };
     const total1 = await readTotal();
 
-    const firstItemPlus = By.xpath("(//div[contains(@class,'carrito-item') or contains(@class,'card')][.//i[contains(@class,'fa-times')] or .//i[contains(@class,'fa-plus')]])[1]//button[.//i[contains(@class,'fa-plus')]]");
-    await driver.wait(until.elementLocated(firstItemPlus), 20000);
-    const plusEl = await driver.findElement(firstItemPlus);
+    const plusInCartLocator = By.xpath("(//button[.//i[contains(@class,'fa-plus')]])[1]");
+    await driver.wait(until.elementLocated(plusInCartLocator), 20000);
+    const plusEl = await driver.findElement(plusInCartLocator);
     await clickSmart(driver, plusEl);
 
     await driver.wait(async () => {
