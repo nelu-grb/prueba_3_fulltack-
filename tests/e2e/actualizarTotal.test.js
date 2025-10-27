@@ -1,59 +1,63 @@
-const { buildDesktopDriver, helpers } = require("./support/driver");
+process.env.WEBDRIVER_MANAGER_VERSION = "true";
+const { Builder, By, until } = require("selenium-webdriver");
+const chrome = require("selenium-webdriver/chrome");
+
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
+const opts = new chrome.Options().addArguments(
+  "--headless=new",
+  "--no-sandbox",
+  "--disable-dev-shm-usage"
+);
+const sel = {
+  linkProductos: By.xpath("//a[contains(.,'Productos')]"),
+  anyAddBtn: By.xpath("(//button[contains(.,'Añadir') or contains(.,'Agregar')])[1]"),
+  linkCarrito: By.xpath("//a[contains(.,'Mi carrito') or contains(.,'carrito')]"),
+  btnTotal: By.xpath("//button[contains(.,'Total a pagar')]"),
+  plusBtn: By.xpath("(//button[.//i[contains(@class,'fa-plus')]])[1]")
+};
+const parseCLP = (t) => Number((t || "").replace(/[^\d]/g, "") || 0);
 
 describe("Actualización de total al cambiar cantidad", function () {
-  this.timeout(120000);
-  let driver, h;
+  this.timeout(60000);
+  let driver;
 
-  before(async () => { driver = await buildDesktopDriver(); h = helpers(driver); });
-  after(async () => { if (driver) await driver.quit(); });
+  before(async () => {
+    driver = await new Builder().forBrowser("chrome").setChromeOptions(opts).build();
+  });
 
-  // Utilidad: intenta encontrar el elemento Total con varias estrategias
-  const findTotalElement = async () => {
-    const locators = [
-      h.By.xpath("//*[contains(.,'Total')]/following::strong[1]"),
-      h.By.xpath("//*[contains(.,'Total')]/following::*[self::strong or self::b or self::span][1]"),
-      h.By.css("#total, .total, [data-testid='total']"),
-    ];
-    for (const loc of locators) {
-      const els = await driver.findElements(loc);
-      if (els.length) return els[0];
-    }
-    return null;
-  };
-
-  const parseNumber = (txt) => parseFloat((txt || "").replace(/[^\d.,]/g, "").replace(/\./g, "").replace(",", ".")) || 0;
+  after(async () => {
+    if (driver) await driver.quit();
+  });
 
   it("El total (o subtotal) cambia al sumar una unidad", async () => {
-    // Prepara un carrito con 1 unidad
-    await driver.get(`${BASE_URL}/inventario`);
-    // Asegura que la cantidad sea > 0 antes de añadir
-    const plusBtn = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[.//i[contains(@class,'fa-plus')]]");
-    const addBtn  = h.By.xpath("(//div[contains(@class,'product-card')])[1]//button[contains(.,'Añadir') or contains(.,'Agregar')]");
-    await h.clickSafe(plusBtn);
-    await h.clickSafe(addBtn);
+    await driver.get(BASE_URL);
 
-    // Ir a /pago
-    await h.clickSafe(h.By.xpath("//a[contains(.,'carrito') or contains(.,'Carrito')]"));
-    await h.waitUrlContains("/pago");
+    await driver.wait(until.elementLocated(sel.linkProductos), 15000);
+    await driver.findElement(sel.linkProductos).click();
 
-    // Intenta leer TOTAL; si no existe, usa SUBTOTAL de la primera fila
-    let baseEl = await findTotalElement();
-    if (!baseEl) {
-      baseEl = await h.waitVisible(h.By.xpath("(//div[contains(@class,'carrito-item')])[1]//*[contains(@class,'subtotal') or self::strong or self::span][1]"));
-    }
-    const before = parseNumber(await baseEl.getText());
+    await driver.wait(until.elementLocated(sel.anyAddBtn), 15000);
+    await driver.findElement(sel.anyAddBtn).click();
 
-    // Sumar cantidad en la primera fila
-    const plusInRow = h.By.xpath("(//div[contains(@class,'carrito-item')])[1]//button[contains(.,'+') or .//i[contains(@class,'fa-plus')]]");
-    await h.clickSafe(plusInRow);
+    await driver.wait(until.elementLocated(sel.linkCarrito), 15000);
+    await driver.findElement(sel.linkCarrito).click();
 
-    // Espera pequeño y vuelve a leer
-    await new Promise(r => setTimeout(r, 1000));
-    const after = parseNumber(await baseEl.getText());
+    await driver.wait(until.elementLocated(sel.btnTotal), 15000);
+    const totalBeforeTxt = await driver.findElement(sel.btnTotal).getText();
+    const totalBefore = parseCLP(totalBeforeTxt);
 
-    if (!(after > before)) {
-      throw new Error(`El importe no cambió tras aumentar cantidad (${before} → ${after})`);
+    await driver.wait(until.elementLocated(sel.plusBtn), 15000);
+    await driver.findElement(sel.plusBtn).click();
+
+    await driver.wait(async () => {
+      const txt = await driver.findElement(sel.btnTotal).getText();
+      return parseCLP(txt) > totalBefore;
+    }, 15000);
+
+    const totalAfterTxt = await driver.findElement(sel.btnTotal).getText();
+    const totalAfter = parseCLP(totalAfterTxt);
+
+    if (!(totalAfter > totalBefore)) {
+      throw new Error(`Esperaba totalAfter(${totalAfter}) > totalBefore(${totalBefore})`);
     }
   });
 });
