@@ -191,8 +191,20 @@ const Pago = () => {
   };
 
   const renderCartItem = (item: ItemCarrito) => {
-    const itemTotal = (item.precio * item.cantidad).toLocaleString("es-CL");
+    const off = getOfertaFor(item.id) || 0;
+
+    // Subtotal de la línea sin descuento
+    const lineSub = item.precio * item.cantidad;
+    // Descuento de la línea (mismo criterio que usas en el useMemo: redondeo por línea)
+    const lineDesc = Math.round(lineSub * (off / 100));
+    // Total de la línea con oferta
+    const lineTotal = lineSub - lineDesc;
+
+    // Para mostrar precios unitarios coherentes con el total (evita desajustes por redondeo)
+    const unitWithOffer = Math.round(lineTotal / item.cantidad);
+
     const isOutOfStock = stockActual[item.id] <= 0;
+
     return (
       <Card
         key={item.id}
@@ -218,11 +230,25 @@ const Pago = () => {
             <span className="fw-semibold text-primary d-block">
               {item.nombre}
             </span>
-            <small className="text-muted">
-              ${item.precio.toLocaleString("es-CL")} c/u
-            </small>
+
+            {off > 0 ? (
+              <>
+                <small className="text-muted me-2">
+                  ${item.precio.toLocaleString("es-CL")} c/u
+                </small>
+                <span className="badge bg-danger me-2">-{off}%</span>
+                <small className="fw-semibold" style={{ color: "#007f4e" }}>
+                  ${unitWithOffer.toLocaleString("es-CL")} c/u
+                </small>
+              </>
+            ) : (
+              <small className="text-muted">
+                ${item.precio.toLocaleString("es-CL")} c/u
+              </small>
+            )}
           </div>
         </div>
+
         <div className="d-flex align-items-center gap-2">
           <Button
             variant="outline-danger"
@@ -233,12 +259,14 @@ const Pago = () => {
           >
             <i className="fas fa-minus"></i>
           </Button>
+
           <span
             className="fw-bold fs-5 mx-1"
             style={{ minWidth: "20px", textAlign: "center" }}
           >
             {item.cantidad}
           </span>
+
           <Button
             variant="outline-primary"
             onClick={() => handleCantidadChange(item.id, item.cantidad + 1)}
@@ -249,7 +277,12 @@ const Pago = () => {
           >
             <i className="fas fa-plus"></i>
           </Button>
-          <span className="fw-bold text-dark ms-3 me-2">${itemTotal}</span>
+
+          {/* Total de la línea usando precio con oferta */}
+          <span className="fw-bold text-dark ms-3 me-2">
+            ${lineTotal.toLocaleString("es-CL")}
+          </span>
+
           <Button
             variant="danger"
             onClick={() => handleEliminarItem(item.id)}

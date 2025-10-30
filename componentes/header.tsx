@@ -125,15 +125,31 @@ const NavbarComponent: React.FC = () => {
                     link.isCart ? "position-relative" : ""
                   }`}
                 >
-                  <Link href={link.path} passHref legacyBehavior>
+                  {link.isCart ? (
                     <a
+                      role="button"
+                      tabIndex={0}
+                      onClick={irAPagar}
+                      onKeyDown={(e) =>
+                        (e.key === "Enter" || e.key === " ") && irAPagar()
+                      }
                       className={`nav-link px-3 ${
                         isActive(link.path) ? "active" : ""
                       }`}
                     >
                       {renderDesktopLinkContent(link)}
                     </a>
-                  </Link>
+                  ) : (
+                    <Link href={link.path} passHref legacyBehavior>
+                      <a
+                        className={`nav-link px-3 ${
+                          isActive(link.path) ? "active" : ""
+                        }`}
+                      >
+                        {renderDesktopLinkContent(link)}
+                      </a>
+                    </Link>
+                  )}
                 </li>
               ))}
               {isLoggedIn && (
@@ -181,10 +197,22 @@ const NavbarComponent: React.FC = () => {
 
         <Offcanvas.Body className="p-0 d-flex flex-column h-100">
           <ul className="list-unstyled m-0 flex-grow-1">
-            {links
-              .filter((l) => !l.isCart)
-              .map((link, index) => (
-                <li key={index}>
+            {links.map((link, index) => (
+              <li key={index}>
+                {link.isCart ? (
+                  <a
+                    role="button"
+                    tabIndex={0}
+                    onClick={irAPagar}
+                    onKeyDown={(e) =>
+                      (e.key === "Enter" || e.key === " ") && irAPagar()
+                    }
+                    className="offcanvas-nav-link d-block px-3 py-2 text-primary"
+                  >
+                    {link.label}
+                    {renderBadge(cartCount, "cart-count-mobile")}
+                  </a>
+                ) : (
                   <Link
                     href={link.path}
                     className={`text-decoration-none offcanvas-nav-link d-block px-3 py-2 ${
@@ -195,8 +223,10 @@ const NavbarComponent: React.FC = () => {
                   >
                     {link.label}
                   </Link>
-                </li>
-              ))}
+                )}
+              </li>
+            ))}
+
             {isLoggedIn && (
               <li>
                 <a
