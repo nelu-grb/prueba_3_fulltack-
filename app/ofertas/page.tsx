@@ -1,37 +1,23 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Card, Row, Col, Badge, Button } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 import { todosLosProductos } from "../Data";
-import { OFERTAS_PRODUCTO, getOfertaFor } from "../Data";
+import { getOfertaFor } from "../Data";
 
 const OfertasPage: React.FC = () => {
   const router = useRouter();
-  const [isLogged, setIsLogged] = useState(false);
 
-  useEffect(() => {
-    const logged =
-      typeof window !== "undefined" &&
-      localStorage.getItem("isLoggedIn") === "1";
-    if (!logged) {
-      router.replace("/acceso");
-      return;
-    }
-    setIsLogged(true);
-  }, [router]);
-
+  // Mostrar siempre las ofertas, sin importar si hay sesión
   const productosConOferta = useMemo(() => {
-    if (!isLogged) return [];
     const all = [
       ...todosLosProductos.juguetes,
       ...todosLosProductos.accesorios,
       ...todosLosProductos.alimentos,
     ];
     return all.filter((p) => getOfertaFor(p.id) > 0);
-  }, [isLogged]);
-
-  if (!isLogged) return null;
+  }, []);
 
   return (
     <main className="container my-5">

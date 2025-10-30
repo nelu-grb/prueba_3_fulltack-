@@ -72,13 +72,13 @@ const NavbarComponent: React.FC = () => {
         isCart: false,
         show: !isLoggedIn,
       },
-      { path: "/acceso", label: "Acceder", isCart: false, show: !isLoggedIn },
+      { path: "/acceso", label: "Acceder", isCart: false, show: true },
       { path: "/inventario", label: "Productos", isCart: false, show: true },
       { path: "/pago", label: "Mi carrito", isCart: true, show: true },
       { path: "/contacto", label: "Contacto", isCart: false, show: true },
       { path: "/blog", label: "Blog", isCart: false, show: true },
       { path: "/nosotros", label: "Nosotros", isCart: false, show: true },
-      { path: "/ofertas", label: "Ofertas", isCart: false, show: isLoggedIn },
+      { path: "/ofertas", label: "Ofertas", isCart: false, show: true },
     ];
     return base.filter((l) => l.show);
   }, [isLoggedIn]);

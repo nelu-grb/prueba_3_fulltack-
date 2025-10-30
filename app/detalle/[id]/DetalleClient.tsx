@@ -3,47 +3,46 @@
 import React, { useEffect, useState } from "react";
 import { Row, Col, Card, Button, Alert } from "react-bootstrap";
 import { useParams, useRouter } from "next/navigation";
-import { todosLosProductos, Producto } from "../../Data";
+import { todosLosProductos, Producto, getOfertaFor } from "../../Data";
 import "@fortawesome/fontawesome-free/css/all.min.css";
-import { getOfertaFor } from "../../Data";
 
 const getProductById = (id: number): Producto | undefined => {
-  const allProducts = [
+  const all = [
     ...todosLosProductos.juguetes,
     ...todosLosProductos.accesorios,
     ...todosLosProductos.alimentos,
   ];
-  return allProducts.find((p) => p.id === id);
+  return all.find((p) => p.id === id);
 };
+
+// 🔧 normaliza a "/img/archivo.ext"
+const norm = (p: string) => (p?.startsWith("/") ? p : `/${p}`);
 
 const DetalleClient: React.FC = () => {
   const params = useParams();
   const router = useRouter();
-
   const productId = Number(params.id);
 
   const [producto, setProducto] = useState<Producto | null>(null);
-  const [cantidad, setCantidad] = useState<number>(1);
+  const [cantidad, setCantidad] = useState(1);
   const [mensaje, setMensaje] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [stockLocal, setStockLocal] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [stockLocal, setStockLocal] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [imagenPrincipal, setImagenPrincipal] = useState<string>("");
 
   useEffect(() => {
     if (!productId || isNaN(productId)) {
       setLoading(false);
       return;
     }
-    const productoEncontrado = getProductById(productId);
-    if (productoEncontrado) {
-      setProducto(productoEncontrado);
-      let storedStock = JSON.parse(
-        sessionStorage.getItem("stockActual") || "{}"
-      );
+    const prod = getProductById(productId);
+    if (prod) {
+      setProducto(prod);
+      setImagenPrincipal(norm(prod.imagen));
+      const stored = JSON.parse(sessionStorage.getItem("stockActual") || "{}");
       const stock =
-        storedStock[productId] !== undefined
-          ? storedStock[productId]
-          : productoEncontrado.stock;
+        stored[productId] !== undefined ? stored[productId] : prod.stock;
       setStockLocal(stock);
       setCantidad(stock > 0 ? 1 : 0);
     }
@@ -55,11 +54,10 @@ const DetalleClient: React.FC = () => {
     return () => window.removeEventListener("authChanged", onAuth);
   }, [productId]);
 
-  const handleSetCantidad = (nuevaCantidad: number) => {
+  const handleSetCantidad = (n: number) => {
     if (!producto) return;
-    let finalCantidad = Math.max(1, nuevaCantidad);
-    finalCantidad = Math.min(finalCantidad, stockLocal);
-    setCantidad(finalCantidad);
+    const v = Math.max(1, Math.min(n, stockLocal));
+    setCantidad(v);
   };
 
   const agregarAlCarrito = () => {
@@ -68,7 +66,7 @@ const DetalleClient: React.FC = () => {
       setMensaje({
         texto:
           stockLocal === 0
-            ? `Este producto está agotado.`
+            ? "Este producto está agotado."
             : `Cantidad inválida o superior al stock disponible (${stockLocal}).`,
         tipo: "danger",
       });
@@ -76,25 +74,21 @@ const DetalleClient: React.FC = () => {
       return;
     }
     let carrito = JSON.parse(localStorage.getItem("carrito") || "[]");
-    const itemExistenteIndex = carrito.findIndex(
-      (item: any) => item.id === producto.id
-    );
-    if (itemExistenteIndex > -1) {
-      carrito[itemExistenteIndex].cantidad += cantidad;
-    } else {
+    const idx = carrito.findIndex((i: any) => i.id === producto.id);
+    if (idx > -1) carrito[idx].cantidad += cantidad;
+    else
       carrito.push({
         id: producto.id,
         nombre: producto.nombre,
         precio: producto.precio,
-        cantidad: cantidad,
+        cantidad,
         stock: producto.stock,
       });
-    }
     localStorage.setItem("carrito", JSON.stringify(carrito));
     const nuevoStock = stockLocal - cantidad;
-    let storedStock = JSON.parse(sessionStorage.getItem("stockActual") || "{}");
-    storedStock[producto.id] = nuevoStock;
-    sessionStorage.setItem("stockActual", JSON.stringify(storedStock));
+    const stored = JSON.parse(sessionStorage.getItem("stockActual") || "{}");
+    stored[producto.id] = nuevoStock;
+    sessionStorage.setItem("stockActual", JSON.stringify(stored));
     setStockLocal(nuevoStock);
     setMensaje({
       texto: `Se añadieron ${cantidad} unidades de "${producto.nombre}" al carrito.`,
@@ -107,12 +101,8 @@ const DetalleClient: React.FC = () => {
 
   if (loading || !producto) {
     return (
-      <main className="container my-5 flex-grow-1">
-        <div className="row justify-content-center">
-          <div className="col-12 text-center">
-            <p className="text-muted">Cargando detalle del producto...</p>
-          </div>
-        </div>
+      <main className="container my-5 text-center">
+        <p className="text-muted">Cargando detalle del producto...</p>
       </main>
     );
   }
@@ -130,30 +120,64 @@ const DetalleClient: React.FC = () => {
         <Col lg={10}>
           <Card className="shadow-lg p-4 position-relative">
             {hayOferta && (
-              <span
-                className="position-absolute top-0 start-0 m-3 badge bg-danger"
-                style={{ zIndex: 2 }}
-              >
+              <span className="position-absolute top-0 start-0 m-3 badge bg-danger">
                 -{off}%
               </span>
             )}
             <Row>
-              <Col md={6} className="mb-4 mb-md-0">
+              <Col md={6} className="mb-4 mb-md-0 text-center">
                 <img
-                  src={producto.imagen}
+                  src={imagenPrincipal}
                   alt={producto.nombre}
-                  className="img-fluid rounded-lg shadow-sm"
+                  className="img-fluid rounded-lg shadow-sm mb-3"
                   style={{
                     maxHeight: "450px",
                     objectFit: "cover",
                     width: "100%",
+                    borderRadius: "10px",
                   }}
+                  onError={(e) =>
+                    (e.currentTarget.src = "/img/placeholder.png")
+                  }
                 />
+                <div className="d-flex justify-content-center gap-3">
+                  {producto.imagendescripcion.map((img, idx) => {
+                    const src = norm(img);
+                    return (
+                      <img
+                        key={idx}
+                        src={src}
+                        alt={`vista-${idx}`}
+                        onClick={() => setImagenPrincipal(src)}
+                        className={`rounded border ${
+                          imagenPrincipal === src
+                            ? "border-primary"
+                            : "border-light"
+                        }`}
+                        style={{
+                          width: "90px",
+                          height: "90px",
+                          objectFit: "cover",
+                          cursor: "pointer",
+                          transition: "transform 0.2s",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.transform = "scale(1.05)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.transform = "scale(1.0)")
+                        }
+                        onError={(e) =>
+                          (e.currentTarget.src = "/img/placeholder.png")
+                        }
+                      />
+                    );
+                  })}
+                </div>
               </Col>
 
               <Col md={6}>
                 <h1 className="text-primary fw-bold mb-3">{producto.nombre}</h1>
-
                 <p className="lead">{producto.descripcion}</p>
 
                 {hayOferta ? (
@@ -193,10 +217,7 @@ const DetalleClient: React.FC = () => {
                   >
                     <i className="fas fa-minus"></i>
                   </Button>
-                  <span
-                    className="fw-bold fs-3 text-dark px-3"
-                    id="cantidadDetalle"
-                  >
+                  <span className="fw-bold fs-3 text-dark px-3">
                     {cantidad}
                   </span>
                   <Button

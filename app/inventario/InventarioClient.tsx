@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Col, Card, Button, Alert } from "react-bootstrap";
+import React, { useEffect, useState } from "react";
+import { Col, Card, Button, Alert, Dropdown } from "react-bootstrap";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { todosLosProductos, Producto } from "../Data";
 import { getOfertaFor } from "../Data";
@@ -26,6 +26,7 @@ const getTodosLosProductosArray = (): Producto[] => {
 
 const InventarioClient: React.FC = () => {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const categoriaQuery = searchParams.get("categoria") as
     | keyof typeof todosLosProductos
     | undefined;
@@ -125,20 +126,55 @@ const InventarioClient: React.FC = () => {
   };
 
   const precioConOferta = (p: Producto) => {
-    const off = isLoggedIn ? getOfertaFor(p.id) : 0;
+    const off = getOfertaFor(p.id);
     if (!off) return null;
     const linea = Math.round(p.precio - p.precio * (off / 100));
     return { off, linea };
   };
 
+  const cambiarCategoria = (key: string | null) => {
+    if (!key || key === "todos") {
+      router.push("/inventario");
+    } else {
+      router.push(`/inventario?categoria=${key}`);
+    }
+  };
+
   return (
     <main className="container my-5 flex-grow-1">
-      <h2
-        id="tituloCategoria"
-        className="mb-4 text-center text-primary fw-bold"
-      >
-        {titulo}
-      </h2>
+      <div className="d-flex align-items-center justify-content-between mb-4">
+        <h2 id="tituloCategoria" className="m-0 text-primary fw-bold">
+          {titulo}
+        </h2>
+        <Dropdown align="end" onSelect={cambiarCategoria}>
+          <Dropdown.Toggle variant="light" className="border-0">
+            <i className="fas fa-ellipsis-v"></i>
+          </Dropdown.Toggle>
+          <Dropdown.Menu>
+            <Dropdown.Item eventKey="todos" active={!categoriaQuery}>
+              Todos
+            </Dropdown.Item>
+            <Dropdown.Item
+              eventKey="juguetes"
+              active={categoriaQuery === "juguetes"}
+            >
+              Juguetes
+            </Dropdown.Item>
+            <Dropdown.Item
+              eventKey="accesorios"
+              active={categoriaQuery === "accesorios"}
+            >
+              Accesorios
+            </Dropdown.Item>
+            <Dropdown.Item
+              eventKey="alimentos"
+              active={categoriaQuery === "alimentos"}
+            >
+              Alimentos
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
 
       {mensaje && (
         <Alert variant={mensaje.tipo} className="mt-3 text-center">
