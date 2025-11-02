@@ -1,18 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
-  Alert,
-} from "react-bootstrap";
+import { Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
 import "@fortawesome/fontawesome-free/css/all.min.css";
-import { todosLosProductos } from "../Data";
-import { getOfertaFor } from "../Data";
+import { todosLosProductos, getOfertaFor } from "../Data";
+import { useRouter } from "next/navigation";
 
 interface ItemCarrito {
   id: number;
@@ -47,6 +39,7 @@ const getProductDetails = (id: number) => {
 };
 
 const Pago = () => {
+  const router = useRouter();
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [validated, setValidated] = useState(false);
   const [mensaje, setMensaje] = useState<Mensaje | null>(null);
@@ -61,7 +54,7 @@ const Pago = () => {
     const stockStored = JSON.parse(
       sessionStorage.getItem("stockActual") || "{}"
     );
-    const carritoDetallado: ItemCarrito[] = carritoStored
+    let carritoDetallado: ItemCarrito[] = carritoStored
       .map((item) => {
         const details = getProductDetails(item.id);
         if (!details) return null;
@@ -75,13 +68,46 @@ const Pago = () => {
         };
       })
       .filter((x): x is ItemCarrito => x !== null);
+
+    if (carritoDetallado.length === 0) {
+      const pending = JSON.parse(
+        sessionStorage.getItem("kp_pending_cart") || "[]"
+      );
+      const pendingStock = JSON.parse(
+        sessionStorage.getItem("kp_pending_stock") || "{}"
+      );
+      if (Array.isArray(pending) && pending.length > 0) {
+        carritoDetallado = pending;
+        for (const it of pending) {
+          if (pendingStock[it.id] === undefined) pendingStock[it.id] = 0;
+        }
+        localStorage.setItem(
+          "carrito",
+          JSON.stringify(
+            pending.map((x: ItemCarrito) => ({
+              id: x.id,
+              cantidad: x.cantidad,
+            }))
+          )
+        );
+        sessionStorage.setItem("stockActual", JSON.stringify(pendingStock));
+        sessionStorage.removeItem("kp_pending_cart");
+        sessionStorage.removeItem("kp_pending_stock");
+        sessionStorage.removeItem("kp_pending_totals");
+      }
+    }
+
     setCarrito(carritoDetallado);
-    setStockActual(stockStored);
+    setStockActual(
+      Object.keys(stockStored).length
+        ? stockStored
+        : JSON.parse(sessionStorage.getItem("kp_pending_stock") || "{}")
+    );
   };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const timer = setTimeout(loadDataFromStorage, 100);
+    const timer = setTimeout(loadDataFromStorage, 50);
     window.addEventListener("storage", loadDataFromStorage);
     return () => {
       clearTimeout(timer);
@@ -109,17 +135,19 @@ const Pago = () => {
     sessionStorage.setItem("stockActual", JSON.stringify(stockActual));
   }, [carrito, stockActual]);
 
-  const { subtotal, descuento, total } = useMemo(() => {
+  const { subtotal, descuento, total, items } = useMemo(() => {
     let sub = 0;
     let desc = 0;
+    let it = 0;
     for (const item of carrito) {
       const lineSub = item.precio * item.cantidad;
       sub += lineSub;
+      it += item.cantidad;
       const off = getOfertaFor(item.id) || 0;
       const lineDesc = Math.round(lineSub * (off / 100));
       desc += lineDesc;
     }
-    return { subtotal: sub, descuento: desc, total: sub - desc };
+    return { subtotal: sub, descuento: desc, total: sub - desc, items: it };
   }, [carrito]);
 
   const handleCantidadChange = (id: number, nuevaCantidad: number) => {
@@ -163,15 +191,36 @@ const Pago = () => {
   const handleConfirmarPago = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setValidated(true);
-    const form = e.currentTarget;
-    if (!form.checkValidity()) {
-      setMensaje({
-        texto:
-          "Por favor, completa correctamente todos los campos de pago y envío.",
-        tipo: "danger",
-      });
+    const form = e.currentTarget as HTMLFormElement;
+
+    const emailInput = form.querySelector<HTMLInputElement>("#emailComprador");
+    const telInput = form.querySelector<HTMLInputElement>("#telefonoComprador");
+    const email = emailInput?.value || "";
+    const tel = telInput?.value || "";
+
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const telOk = /^\+?\d{7,15}$/.test(tel);
+
+    if (!form.checkValidity() || !emailOk || !telOk) {
+      const payload = {
+        cart: carrito,
+        stock: stockActual,
+        totals: { subtotal, descuento, total },
+        reason:
+          !emailOk || !telOk
+            ? "Correo o teléfono inválido. Revisa el formato e inténtalo nuevamente."
+            : "Formulario incompleto. Revisa los campos requeridos.",
+      };
+      sessionStorage.setItem("kp_pending_cart", JSON.stringify(payload.cart));
+      sessionStorage.setItem("kp_pending_stock", JSON.stringify(payload.stock));
+      sessionStorage.setItem(
+        "kp_pending_totals",
+        JSON.stringify(payload.totals)
+      );
+      router.push("/pago/PagoRechazado");
       return;
     }
+
     if (carrito.length === 0) {
       setMensaje({
         texto: "Tu carrito está vacío. Agrega productos para pagar.",
@@ -179,30 +228,24 @@ const Pago = () => {
       });
       return;
     }
-    setMensaje({
-      texto: `¡Compra exitosa! Total pagado: $${total.toLocaleString(
-        "es-CL"
-      )}. Gracias por tu compra.`,
-      tipo: "success",
-    });
-    setCarrito([]);
-    localStorage.removeItem("carrito");
-    setValidated(false);
+
+    const totalCL = encodeURIComponent(total.toString());
+    const itemsCL = encodeURIComponent(items.toString());
+    setTimeout(() => {
+      localStorage.removeItem("carrito");
+      window.dispatchEvent(new Event("carritoActualizado"));
+      setCarrito([]);
+      setValidated(false);
+      router.push(`/pago/CompraExitosa?total=${totalCL}&items=${itemsCL}`);
+    }, 400);
   };
 
   const renderCartItem = (item: ItemCarrito) => {
     const off = getOfertaFor(item.id) || 0;
-
-    // Subtotal de la línea sin descuento
     const lineSub = item.precio * item.cantidad;
-    // Descuento de la línea (mismo criterio que usas en el useMemo: redondeo por línea)
     const lineDesc = Math.round(lineSub * (off / 100));
-    // Total de la línea con oferta
     const lineTotal = lineSub - lineDesc;
-
-    // Para mostrar precios unitarios coherentes con el total (evita desajustes por redondeo)
     const unitWithOffer = Math.round(lineTotal / item.cantidad);
-
     const isOutOfStock = stockActual[item.id] <= 0;
 
     return (
@@ -213,7 +256,7 @@ const Pago = () => {
       >
         <div className="d-flex align-items-center me-auto">
           <img
-            src={item.imagen}
+            src={item.imagen?.startsWith("/") ? item.imagen : `/${item.imagen}`}
             alt={item.nombre}
             style={{
               width: "50px",
@@ -230,7 +273,6 @@ const Pago = () => {
             <span className="fw-semibold text-primary d-block">
               {item.nombre}
             </span>
-
             {off > 0 ? (
               <>
                 <small className="text-muted me-2">
@@ -278,7 +320,6 @@ const Pago = () => {
             <i className="fas fa-plus"></i>
           </Button>
 
-          {/* Total de la línea usando precio con oferta */}
           <span className="fw-bold text-dark ms-3 me-2">
             ${lineTotal.toLocaleString("es-CL")}
           </span>
@@ -311,7 +352,7 @@ const Pago = () => {
         </Alert>
       )}
       <Row className="justify-content-center">
-        <Col lg={8}>
+        <Col lg={8} xl={7}>
           <Card className="shadow-lg">
             <div className="card-header bg-primary text-white text-center py-3">
               <h3 className="h4 mb-0">
