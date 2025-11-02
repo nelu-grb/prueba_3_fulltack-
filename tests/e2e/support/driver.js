@@ -1,6 +1,6 @@
+// tests/e2e/driver.js
 const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
-const chromedriver = require("chromedriver");
 
 // ▶️ Driver de escritorio
 async function buildDesktopDriver() {
@@ -10,19 +10,11 @@ async function buildDesktopDriver() {
     "--disable-dev-shm-usage",
     "--window-size=1366,900"
   );
-  const service = new chrome.ServiceBuilder(chromedriver.path).build();
-  try {
-    if (typeof new Builder().setChromeService === "function") {
-      return await new Builder()
-        .forBrowser("chrome")
-        .setChromeOptions(options)
-        .setChromeService(service)
-        .build();
-    }
-    return await chrome.Driver.createSession(options, service);
-  } catch {
-    return await chrome.Driver.createSession(options, service);
-  }
+  // Sin ServiceBuilder ni chromedriver: Selenium Manager elige el binario correcto
+  return await new Builder()
+    .forBrowser("chrome")
+    .setChromeOptions(options)
+    .build();
 }
 
 // ▶️ Driver “móvil” (para probar el Offcanvas)
@@ -33,19 +25,10 @@ async function buildMobileDriver() {
     "--disable-dev-shm-usage",
     "--window-size=390,844" // iPhone 12 aprox
   );
-  const service = new chrome.ServiceBuilder(chromedriver.path).build();
-  try {
-    if (typeof new Builder().setChromeService === "function") {
-      return await new Builder()
-        .forBrowser("chrome")
-        .setChromeOptions(options)
-        .setChromeService(service)
-        .build();
-    }
-    return await chrome.Driver.createSession(options, service);
-  } catch {
-    return await chrome.Driver.createSession(options, service);
-  }
+  return await new Builder()
+    .forBrowser("chrome")
+    .setChromeOptions(options)
+    .build();
 }
 
 // ▶️ Helpers por driver
@@ -68,12 +51,22 @@ function helpers(driver) {
   const clickSafe = async (locator) => {
     const el = await waitVisible(locator);
     await waitGone(By.id("loading")).catch(() => {});
-    await driver.executeScript("arguments[0].scrollIntoView({block:'center'});", el);
-    try { await el.click(); } catch { await driver.executeScript("arguments[0].click();", el); }
+    await driver.executeScript(
+      "arguments[0].scrollIntoView({block:'center'});",
+      el
+    );
+    try {
+      await el.click();
+    } catch {
+      await driver.executeScript("arguments[0].click();", el);
+    }
   };
 
   const waitUrlContains = async (frag, ms = 20000) => {
-    await driver.wait(async () => (await driver.getCurrentUrl()).includes(frag), ms);
+    await driver.wait(
+      async () => (await driver.getCurrentUrl()).includes(frag),
+      ms
+    );
   };
 
   return { By, until, waitVisible, waitGone, clickSafe, waitUrlContains };

@@ -2,9 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, Button, Alert } from "react-bootstrap";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import "@fortawesome/fontawesome-free/css/all.min.css";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Item = {
   id: number;
@@ -85,14 +84,20 @@ export default function PagoRechazado() {
     router.push("/pago");
   };
 
+  const seguirComprando = () => {
+    localStorage.removeItem("carrito");
+    sessionStorage.removeItem("stockActual");
+    sessionStorage.removeItem("kp_pending_cart");
+    sessionStorage.removeItem("kp_pending_stock");
+    sessionStorage.removeItem("kp_pending_totals");
+    sessionStorage.removeItem("kp_pending_reason");
+    window.dispatchEvent(new Event("carritoActualizado"));
+    router.push("/inventario");
+  };
+
   return (
     <main className="container my-5 d-flex justify-content-center">
-      <div
-        style={{
-          maxWidth: 980,
-          width: "100%",
-        }}
-      >
+      <div style={{ maxWidth: 980, width: "100%" }}>
         <Card className="shadow-lg border-0 mx-auto" style={{ maxWidth: 980 }}>
           <div className="px-4 pt-4">
             <div
@@ -180,12 +185,14 @@ export default function PagoRechazado() {
                         <i className="fas fa-rotate-left me-2"></i>
                         Corregir y reintentar
                       </Button>
-                      <Link href="/inventario" legacyBehavior>
-                        <a className="btn btn-outline-secondary flex-grow-1 py-3">
-                          <i className="fas fa-bag-shopping me-2"></i>
-                          Seguir comprando
-                        </a>
-                      </Link>
+                      <Button
+                        variant="outline-secondary"
+                        className="flex-grow-1 py-3"
+                        onClick={seguirComprando}
+                      >
+                        <i className="fas fa-bag-shopping me-2"></i>
+                        Seguir comprando
+                      </Button>
                     </div>
                   </Card.Body>
                 </Card>
