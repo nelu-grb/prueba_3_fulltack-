@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:e2e": "mocha tests/e2e/**/*.test.js --timeout 60000"
+    "test:e2e": "mocha tests/e2e/**/*.test.js --timeout 60000",
+    "e2e": "mocha \"tests/e2e/**/*.test.js\" --timeout 180000"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
