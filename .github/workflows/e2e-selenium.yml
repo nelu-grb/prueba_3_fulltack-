@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # No fijes version aquí: pnpm/action-setup leerá packageManager del package.json
+      # pnpm lee la versión desde package.json (packageManager)
       - uses: pnpm/action-setup@v4
         with:
           run_install: false
@@ -23,6 +23,13 @@ jobs:
 
       - name: Install deps
         run: pnpm install --no-frozen-lockfile
+
+      # 🔧 Fuerza uso de Selenium Manager (si aún tienes chromedriver en devDeps)
+      - name: Remove local chromedriver to avoid version mismatch
+        run: |
+          rm -f node_modules/.bin/chromedriver || true
+          rm -rf node_modules/.pnpm/chromedriver* || true
+          rm -rf node_modules/chromedriver* || true
 
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
@@ -38,5 +45,6 @@ jobs:
       - name: Run Selenium tests (Prod)
         env:
           BASE_URL: https://prueba-finalmente.vercel.app
+          # Asegura que NO se fuerce un driver externo:
           WEBDRIVER_CHROME_DRIVER: ""
         run: pnpm test:e2e
