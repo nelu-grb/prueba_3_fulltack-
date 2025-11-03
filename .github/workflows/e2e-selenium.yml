@@ -11,9 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No fijes version aquí: pnpm/action-setup leerá packageManager del package.json
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          run_install: false
 
       - uses: actions/setup-node@v4
         with:
@@ -37,5 +38,5 @@ jobs:
       - name: Run Selenium tests (Prod)
         env:
           BASE_URL: https://prueba-finalmente.vercel.app
-          WEBDRIVER_CHROME_DRIVER: ""   # evita que algo fuerce un chromedriver
+          WEBDRIVER_CHROME_DRIVER: ""
         run: pnpm test:e2e
