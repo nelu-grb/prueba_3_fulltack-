@@ -1,55 +1,218 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Card, Button } from "react-bootstrap";
-import Link from "next/link";
+import React, { useEffect, useMemo, useState } from "react";
+import { Card, Button, Alert } from "react-bootstrap";
+import "@fortawesome/fontawesome-free/css/all.min.css";
+import { useRouter, useSearchParams } from "next/navigation";
+
+type Item = {
+  id: number;
+  nombre: string;
+  precio: number;
+  cantidad: number;
+  imagen: string;
+};
+
+const norm = (src: string) => (src?.startsWith("/") ? src : `/${src}`);
 
 export default function PagoRechazadoClient() {
-  const params = useSearchParams();
   const router = useRouter();
-  const total = useMemo(() => params.get("total") || "0", [params]);
-  const items = useMemo(() => params.get("items") || "0", [params]);
-  const reason = useMemo(
-    () => params.get("reason") || "No especificado",
-    [params]
+  const sp = useSearchParams();
+  const [items, setItems] = useState<Item[]>([]);
+  const [totals, setTotals] = useState<{
+    subtotal: number;
+    descuento: number;
+    total: number;
+  }>({
+    subtotal: 0,
+    descuento: 0,
+    total: 0,
+  });
+  const [reason, setReason] = useState<string>("");
+
+  useEffect(() => {
+    const p = JSON.parse(sessionStorage.getItem("kp_pending_cart") || "[]");
+    const t = JSON.parse(sessionStorage.getItem("kp_pending_totals") || "{}");
+    const r =
+      sp.get("error") ||
+      sp.get("reason") ||
+      sessionStorage.getItem("kp_pending_reason") ||
+      "Formulario incompleto. Revisa los campos requeridos.";
+    if (Array.isArray(p) && p.length > 0) {
+      setItems(p);
+    }
+    if (t && typeof t === "object") {
+      setTotals({
+        subtotal: Number(t.subtotal) || Number(sp.get("subtotal")) || 0,
+        descuento: Number(t.descuento) || Number(sp.get("descuento")) || 0,
+        total: Number(t.total) || Number(sp.get("total")) || 0,
+      });
+    } else {
+      setTotals({
+        subtotal: Number(sp.get("subtotal")) || 0,
+        descuento: Number(sp.get("descuento")) || 0,
+        total: Number(sp.get("total")) || 0,
+      });
+    }
+    setReason(r);
+  }, [sp]);
+
+  const subtotalFmt = useMemo(
+    () => totals.subtotal.toLocaleString("es-CL"),
+    [totals.subtotal]
+  );
+  const descuentoFmt = useMemo(
+    () => totals.descuento.toLocaleString("es-CL"),
+    [totals.descuento]
+  );
+  const totalFmt = useMemo(
+    () => totals.total.toLocaleString("es-CL"),
+    [totals.total]
   );
 
+  const corregir = () => {
+    const p = sessionStorage.getItem("kp_pending_cart");
+    const stock = sessionStorage.getItem("kp_pending_stock");
+    if (p) {
+      const arr = JSON.parse(p);
+      localStorage.setItem(
+        "carrito",
+        JSON.stringify(
+          Array.isArray(arr)
+            ? arr.map((x: any) => ({ id: x.id, cantidad: x.cantidad }))
+            : []
+        )
+      );
+    }
+    if (stock) {
+      sessionStorage.setItem("stockActual", stock);
+    }
+    window.dispatchEvent(new Event("carritoActualizado"));
+    router.push("/pago");
+  };
+
+  const seguirComprando = () => {
+    localStorage.removeItem("carrito");
+    sessionStorage.removeItem("stockActual");
+    sessionStorage.removeItem("kp_pending_cart");
+    sessionStorage.removeItem("kp_pending_stock");
+    sessionStorage.removeItem("kp_pending_totals");
+    sessionStorage.removeItem("kp_pending_reason");
+    window.dispatchEvent(new Event("carritoActualizado"));
+    router.push("/inventario");
+  };
+
   return (
-    <main className="container my-5 flex-grow-1">
-      <div className="row justify-content-center">
-        <div className="col-lg-7">
-          <Card className="shadow-lg text-center">
-            <div className="card-header bg-danger text-white py-3">
-              <h3 className="h4 m-0">
-                <i className="fas fa-times-circle me-2"></i>Pago rechazado
-              </h3>
+    <main className="container my-5 d-flex justify-content-center">
+      <div style={{ maxWidth: 980, width: "100%" }}>
+        <Card className="shadow-lg border-0 mx-auto" style={{ maxWidth: 980 }}>
+          <div className="px-4 pt-4">
+            <div
+              className="d-flex align-items-center justify-content-center rounded-3"
+              style={{ background: "#ef4444", color: "#fff", height: 56 }}
+            >
+              <i className="fas fa-times-circle me-2"></i>
+              <span className="fw-bold">Pago Rechazado</span>
             </div>
-            <Card.Body className="p-4">
-              <div className="display-6 mb-2" style={{ color: "#6a0dad" }}>
-                ${Number(total).toLocaleString("es-CL")}
+          </div>
+
+          <div className="p-4">
+            <Alert variant="danger" className="text-center mb-4">
+              {reason}
+            </Alert>
+
+            <div className="row g-4">
+              <div className="col-12 col-lg-7">
+                <h6 className="text-primary mb-3">Productos pendientes</h6>
+                {items.length > 0 ? (
+                  <div className="d-grid gap-3">
+                    {items.map((it) => (
+                      <div
+                        key={it.id}
+                        className="d-flex align-items-center justify-content-between p-3 rounded-3"
+                        style={{ background: "#f3e8ff" }}
+                      >
+                        <div className="d-flex align-items-center">
+                          <img
+                            src={norm(it.imagen)}
+                            alt={it.nombre}
+                            width={56}
+                            height={56}
+                            style={{ objectFit: "contain", borderRadius: 6 }}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                "/placeholder.jpg";
+                            }}
+                            className="me-3"
+                          />
+                          <div className="me-3" style={{ minWidth: 0 }}>
+                            <div
+                              className="fw-semibold text-primary"
+                              style={{ lineHeight: 1.1 }}
+                            >
+                              {it.nombre}
+                            </div>
+                            <small className="text-muted">
+                              ${it.precio.toLocaleString("es-CL")} c/u ×{" "}
+                              {it.cantidad}
+                            </small>
+                          </div>
+                        </div>
+                        <div className="fw-bold">
+                          ${(it.precio * it.cantidad).toLocaleString("es-CL")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-muted">
+                    No hay productos pendientes guardados.
+                  </div>
+                )}
               </div>
-              <div className="text-muted mb-3">Artículos: {items}</div>
-              <div className="badge bg-light text-dark mb-4">
-                Motivo: {reason}
+
+              <div className="col-12 col-lg-5">
+                <h6 className="text-primary mb-3">Resumen</h6>
+                <Card className="border-0 shadow-sm">
+                  <Card.Body>
+                    <div className="d-flex justify-content-between mb-2">
+                      <span>Subtotal</span>
+                      <span>${subtotalFmt}</span>
+                    </div>
+                    <div className="d-flex justify-content-between mb-2">
+                      <span>Descuento</span>
+                      <span className="text-success">- ${descuentoFmt}</span>
+                    </div>
+                    <hr />
+                    <div className="d-flex justify-content-between fw-bold fs-5">
+                      <span>Total</span>
+                      <span>${totalFmt}</span>
+                    </div>
+
+                    <div className="d-flex gap-3 mt-4 flex-wrap">
+                      <Button
+                        variant="primary"
+                        className="flex-grow-1 py-3"
+                        onClick={corregir}
+                      >
+                        <i className="fas fa-rotate-left me-2"></i>
+                        Corregir y reintentar
+                      </Button>
+                      <Button
+                        variant="outline-secondary"
+                        className="flex-grow-1 py-3"
+                        onClick={seguirComprando}
+                      >
+                        <i className="fas fa-bag-shopping me-2"></i>
+                        Seguir comprando
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
               </div>
-              <div className="d-grid gap-3">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={() => router.push("/pago")}
-                >
-                  Intentar nuevamente
-                </Button>
-                <Link href="/inventario" legacyBehavior>
-                  <Button variant="outline-primary" size="lg">
-                    Seguir comprando
-                  </Button>
-                </Link>
-              </div>
-            </Card.Body>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </Card>
       </div>
     </main>
   );

@@ -30,6 +30,7 @@ export default function CompraExitosaClient() {
           >
             <i className="fas fa-check fa-2x" />
           </div>
+
           <h2 className="text-primary fw-bold mb-2">¡Compra exitosa!</h2>
           <p className="text-muted mb-4">
             Tu pago fue procesado correctamente.
