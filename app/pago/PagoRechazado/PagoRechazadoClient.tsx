@@ -1,5 +1,5 @@
 
-
+"use client";
 import React, { useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, Button } from "react-bootstrap";
