@@ -20,25 +20,18 @@ interface Mensaje {
   tipo: "success" | "danger";
 }
 
+const norm = (src: string) => (src?.startsWith("/") ? src : `/${src}`);
+
 const getProductDetails = (id: number) => {
-  if (!todosLosProductos || typeof todosLosProductos !== "object") return null;
   const allProducts = [
     ...(todosLosProductos.juguetes || []),
     ...(todosLosProductos.accesorios || []),
     ...(todosLosProductos.alimentos || []),
   ];
-  const product = allProducts.find((p) => p.id === id);
-  if (product) {
-    return {
-      nombre: product.nombre,
-      precio: product.precio,
-      imagen: product.imagen,
-    };
-  }
-  return null;
+  return allProducts.find((p) => p.id === id) || null;
 };
 
-const Pago = () => {
+export default function Pago() {
   const router = useRouter();
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [validated, setValidated] = useState(false);
@@ -47,15 +40,14 @@ const Pago = () => {
   const [stockActual, setStockActual] = useState<{ [key: number]: number }>({});
 
   const loadDataFromStorage = () => {
-    if (typeof window === "undefined") return;
-    const carritoStored: { id: number; cantidad: number }[] = JSON.parse(
+    const carritoStored = JSON.parse(
       localStorage.getItem("carrito") || "[]"
-    );
+    ) as { id: number; cantidad: number }[];
     const stockStored = JSON.parse(
       sessionStorage.getItem("stockActual") || "{}"
-    );
+    ) as Record<number, number>;
     let carritoDetallado: ItemCarrito[] = carritoStored
-      .map((item) => {
+      .map((item: { id: number; cantidad: number }) => {
         const details = getProductDetails(item.id);
         if (!details) return null;
         return {
@@ -64,23 +56,20 @@ const Pago = () => {
           nombre: details.nombre,
           precio: details.precio,
           imagen: details.imagen,
-          stock: stockStored[item.id] !== undefined ? stockStored[item.id] : 0,
-        };
+          stock: stockStored[item.id] ?? 0,
+        } as ItemCarrito | null;
       })
-      .filter((x): x is ItemCarrito => x !== null);
+      .filter((x: ItemCarrito | null): x is ItemCarrito => x !== null);
 
     if (carritoDetallado.length === 0) {
       const pending = JSON.parse(
         sessionStorage.getItem("kp_pending_cart") || "[]"
-      );
+      ) as ItemCarrito[];
       const pendingStock = JSON.parse(
         sessionStorage.getItem("kp_pending_stock") || "{}"
-      );
+      ) as Record<number, number>;
       if (Array.isArray(pending) && pending.length > 0) {
         carritoDetallado = pending;
-        for (const it of pending) {
-          if (pendingStock[it.id] === undefined) pendingStock[it.id] = 0;
-        }
         localStorage.setItem(
           "carrito",
           JSON.stringify(
@@ -94,40 +83,23 @@ const Pago = () => {
         sessionStorage.removeItem("kp_pending_cart");
         sessionStorage.removeItem("kp_pending_stock");
         sessionStorage.removeItem("kp_pending_totals");
+        sessionStorage.removeItem("kp_pending_reason");
       }
     }
 
     setCarrito(carritoDetallado);
-    setStockActual(
-      Object.keys(stockStored).length
-        ? stockStored
-        : JSON.parse(sessionStorage.getItem("kp_pending_stock") || "{}")
-    );
+    setStockActual(stockStored);
   };
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const timer = setTimeout(loadDataFromStorage, 50);
-    window.addEventListener("storage", loadDataFromStorage);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("storage", loadDataFromStorage);
-    };
-  }, []);
-
-  useEffect(() => {
     loadDataFromStorage();
-    window.addEventListener("carritoActualizado", loadDataFromStorage);
-    window.addEventListener("storage", loadDataFromStorage);
-    return () => {
-      window.removeEventListener("carritoActualizado", loadDataFromStorage);
-      window.removeEventListener("storage", loadDataFromStorage);
-    };
+    const handler = () => loadDataFromStorage();
+    window.addEventListener("carritoActualizado", handler);
+    return () => window.removeEventListener("carritoActualizado", handler);
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const carritoToStore = carrito.map(({ id, cantidad }) => ({
+    const carritoToStore = carrito.map(({ id, cantidad }: ItemCarrito) => ({
       id,
       cantidad,
     }));
@@ -140,28 +112,23 @@ const Pago = () => {
     let desc = 0;
     let it = 0;
     for (const item of carrito) {
+      const off = getOfertaFor(item.id) || 0;
       const lineSub = item.precio * item.cantidad;
       sub += lineSub;
+      desc += Math.round(lineSub * (off / 100));
       it += item.cantidad;
-      const off = getOfertaFor(item.id) || 0;
-      const lineDesc = Math.round(lineSub * (off / 100));
-      desc += lineDesc;
     }
     return { subtotal: sub, descuento: desc, total: sub - desc, items: it };
   }, [carrito]);
 
   const handleCantidadChange = (id: number, nuevaCantidad: number) => {
-    setCarrito((prev) => {
-      const updated = prev
-        .map((item) => {
-          if (item.id !== id) return item;
-          const current = item.cantidad;
+    setCarrito((prev: ItemCarrito[]) =>
+      prev
+        .map((item: ItemCarrito | null) => {
+          if (!item || item.id !== id) return item;
+          const delta = nuevaCantidad - item.cantidad;
           const stock = stockActual[id] || 0;
-          const delta = nuevaCantidad - current;
-          if (nuevaCantidad < 1) {
-            handleEliminarItem(id);
-            return null;
-          }
+          if (nuevaCantidad < 1) return null;
           if (delta > 0 && stock < delta) {
             setMensaje({
               texto: `Stock insuficiente para añadir más. Quedan ${stock} unidades.`,
@@ -172,19 +139,17 @@ const Pago = () => {
           setStockActual((s) => ({ ...s, [id]: (s[id] || 0) - delta }));
           return { ...item, cantidad: nuevaCantidad };
         })
-        .filter((x) => x !== null) as ItemCarrito[];
-      if (updated.length === 0) setMensaje(null);
-      return updated;
-    });
+        .filter((x: ItemCarrito | null): x is ItemCarrito => x !== null)
+    );
   };
 
   const handleEliminarItem = (id: number) => {
-    setCarrito((prev) => {
-      const it = prev.find((x) => x.id === id);
+    setCarrito((prev: ItemCarrito[]) => {
+      const it = prev.find((x: ItemCarrito) => x.id === id);
       if (it) {
         setStockActual((s) => ({ ...s, [id]: (s[id] || 0) + it.cantidad }));
       }
-      return prev.filter((x) => x.id !== id);
+      return prev.filter((x: ItemCarrito) => x.id !== id);
     });
   };
 
@@ -192,30 +157,24 @@ const Pago = () => {
     e.preventDefault();
     setValidated(true);
     const form = e.currentTarget as HTMLFormElement;
-
-    const emailInput = form.querySelector<HTMLInputElement>("#emailComprador");
-    const telInput = form.querySelector<HTMLInputElement>("#telefonoComprador");
-    const email = emailInput?.value || "";
-    const tel = telInput?.value || "";
-
+    const email =
+      (form.querySelector("#emailComprador") as HTMLInputElement)?.value || "";
+    const tel =
+      (form.querySelector("#telefonoComprador") as HTMLInputElement)?.value ||
+      "";
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const telOk = /^\+?\d{7,15}$/.test(tel);
 
     if (!form.checkValidity() || !emailOk || !telOk) {
-      const payload = {
-        cart: carrito,
-        stock: stockActual,
-        totals: { subtotal, descuento, total },
-        reason:
-          !emailOk || !telOk
-            ? "Correo o teléfono inválido. Revisa el formato e inténtalo nuevamente."
-            : "Formulario incompleto. Revisa los campos requeridos.",
-      };
-      sessionStorage.setItem("kp_pending_cart", JSON.stringify(payload.cart));
-      sessionStorage.setItem("kp_pending_stock", JSON.stringify(payload.stock));
+      sessionStorage.setItem("kp_pending_cart", JSON.stringify(carrito));
+      sessionStorage.setItem("kp_pending_stock", JSON.stringify(stockActual));
       sessionStorage.setItem(
         "kp_pending_totals",
-        JSON.stringify(payload.totals)
+        JSON.stringify({ subtotal, descuento, total })
+      );
+      sessionStorage.setItem(
+        "kp_pending_reason",
+        "Correo o teléfono inválido. Revisa el formato e inténtalo nuevamente."
       );
       router.push("/pago/PagoRechazado");
       return;
@@ -229,15 +188,17 @@ const Pago = () => {
       return;
     }
 
+    sessionStorage.setItem(
+      "kp_success_order",
+      JSON.stringify({ items: carrito, subtotal, descuento, total })
+    );
+
     const totalCL = encodeURIComponent(total.toString());
     const itemsCL = encodeURIComponent(items.toString());
-    setTimeout(() => {
-      localStorage.removeItem("carrito");
-      window.dispatchEvent(new Event("carritoActualizado"));
-      setCarrito([]);
-      setValidated(false);
-      router.push(`/pago/CompraExitosa?total=${totalCL}&items=${itemsCL}`);
-    }, 400);
+    localStorage.removeItem("carrito");
+    window.dispatchEvent(new Event("carritoActualizado"));
+    setCarrito([]);
+    router.push(`/pago/CompraExitosa?total=${totalCL}&items=${itemsCL}`);
   };
 
   const renderCartItem = (item: ItemCarrito) => {
@@ -245,7 +206,6 @@ const Pago = () => {
     const lineSub = item.precio * item.cantidad;
     const lineDesc = Math.round(lineSub * (off / 100));
     const lineTotal = lineSub - lineDesc;
-    const unitWithOffer = Math.round(lineTotal / item.cantidad);
     const isOutOfStock = stockActual[item.id] <= 0;
 
     return (
@@ -256,7 +216,7 @@ const Pago = () => {
       >
         <div className="d-flex align-items-center me-auto">
           <img
-            src={item.imagen?.startsWith("/") ? item.imagen : `/${item.imagen}`}
+            src={norm(item.imagen)}
             alt={item.nombre}
             style={{
               width: "50px",
@@ -265,9 +225,9 @@ const Pago = () => {
               borderRadius: "5px",
             }}
             className="me-3"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "/placeholder.jpg";
-            }}
+            onError={(e) =>
+              ((e.target as HTMLImageElement).src = "/placeholder.jpg")
+            }
           />
           <div>
             <span className="fw-semibold text-primary d-block">
@@ -280,7 +240,10 @@ const Pago = () => {
                 </small>
                 <span className="badge bg-danger me-2">-{off}%</span>
                 <small className="fw-semibold" style={{ color: "#007f4e" }}>
-                  ${unitWithOffer.toLocaleString("es-CL")} c/u
+                  {Math.round(lineTotal / item.cantidad).toLocaleString(
+                    "es-CL"
+                  )}{" "}
+                  c/u
                 </small>
               </>
             ) : (
@@ -301,14 +264,12 @@ const Pago = () => {
           >
             <i className="fas fa-minus"></i>
           </Button>
-
           <span
             className="fw-bold fs-5 mx-1"
             style={{ minWidth: "20px", textAlign: "center" }}
           >
             {item.cantidad}
           </span>
-
           <Button
             variant="outline-primary"
             onClick={() => handleCantidadChange(item.id, item.cantidad + 1)}
@@ -319,11 +280,9 @@ const Pago = () => {
           >
             <i className="fas fa-plus"></i>
           </Button>
-
           <span className="fw-bold text-dark ms-3 me-2">
             ${lineTotal.toLocaleString("es-CL")}
           </span>
-
           <Button
             variant="danger"
             onClick={() => handleEliminarItem(item.id)}
@@ -368,10 +327,9 @@ const Pago = () => {
                   </Alert>
                 ) : (
                   <div className="d-grid gap-3 mb-4">
-                    {carrito.map(renderCartItem)}
+                    {carrito.map((it: ItemCarrito) => renderCartItem(it))}
                   </div>
                 )}
-
                 <Card className="border-0 shadow-sm">
                   <Card.Body>
                     <div className="d-flex justify-content-between">
@@ -405,38 +363,25 @@ const Pago = () => {
                   <Col md={6}>
                     <Form.Group controlId="nombreComprador">
                       <Form.Label>Nombre Completo</Form.Label>
-                      <Form.Control
-                        type="text"
-                        required
-                        placeholder="Tu Nombre Completo"
-                      />
+                      <Form.Control required placeholder="Tu Nombre Completo" />
                     </Form.Group>
                   </Col>
                   <Col md={6}>
                     <Form.Group controlId="emailComprador">
                       <Form.Label>Correo Electrónico</Form.Label>
-                      <Form.Control
-                        type="email"
-                        required
-                        placeholder="tu@ejemplo.com"
-                      />
+                      <Form.Control required placeholder="tu@ejemplo.com" />
                     </Form.Group>
                   </Col>
                   <Col md={6}>
                     <Form.Group controlId="telefonoComprador">
                       <Form.Label>Teléfono</Form.Label>
-                      <Form.Control
-                        type="tel"
-                        required
-                        placeholder="+56 9 1234 5678"
-                      />
+                      <Form.Control required placeholder="+56 9 1234 5678" />
                     </Form.Group>
                   </Col>
                   <Col md={6}>
                     <Form.Group controlId="direccionComprador">
                       <Form.Label>Dirección de Envío</Form.Label>
                       <Form.Control
-                        type="text"
                         required
                         placeholder="Calle, Número, Ciudad"
                       />
@@ -453,36 +398,26 @@ const Pago = () => {
                     inline
                     type="radio"
                     name="metodoPago"
-                    id="tarjetaCredito"
                     label="Tarjeta de Crédito"
-                    value="tarjetaCredito"
                     defaultChecked
                     onChange={() => setMostrarTarjeta(true)}
-                    required
                   />
                   <Form.Check
                     inline
                     type="radio"
                     name="metodoPago"
-                    id="transferencia"
                     label="Transferencia Bancaria"
-                    value="transferencia"
                     onChange={() => setMostrarTarjeta(false)}
-                    required
                   />
                 </div>
 
-                <div
-                  id="detallesTarjeta"
-                  className={mostrarTarjeta ? "visible" : "oculto"}
-                >
+                {mostrarTarjeta && (
                   <Row className="g-3">
                     <Col md={6}>
                       <Form.Group controlId="numeroTarjeta">
                         <Form.Label>Número de Tarjeta</Form.Label>
                         <Form.Control
-                          type="text"
-                          required={mostrarTarjeta}
+                          required
                           maxLength={19}
                           placeholder="XXXX XXXX XXXX XXXX"
                         />
@@ -490,10 +425,9 @@ const Pago = () => {
                     </Col>
                     <Col md={3}>
                       <Form.Group controlId="fechaVencimiento">
-                        <Form.Label>Fecha de Vencimiento</Form.Label>
+                        <Form.Label>Vencimiento</Form.Label>
                         <Form.Control
-                          type="text"
-                          required={mostrarTarjeta}
+                          required
                           placeholder="MM/YY"
                           maxLength={5}
                         />
@@ -503,15 +437,14 @@ const Pago = () => {
                       <Form.Group controlId="cvv">
                         <Form.Label>CVV</Form.Label>
                         <Form.Control
-                          type="text"
-                          required={mostrarTarjeta}
+                          required
                           maxLength={3}
                           placeholder="XXX"
                         />
                       </Form.Group>
                     </Col>
                   </Row>
-                </div>
+                )}
 
                 <Button
                   type="submit"
@@ -530,6 +463,4 @@ const Pago = () => {
       </Row>
     </main>
   );
-};
-
-export default Pago;
+}
