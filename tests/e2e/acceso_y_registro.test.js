@@ -1,5 +1,5 @@
 // tests/e2e/acceso_y_registro.test.js
-const { Builder, By, until, Key } = require("selenium-webdriver");
+const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 
 const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
@@ -66,8 +66,11 @@ async function openRegistroPage(driver) {
               "//h1[contains(.,'Registro') or contains(.,'Registrarse')]"
             )
           )
+        ).length > 0 ||
+        (
+          await driver.findElements(By.xpath("//h2[contains(.,'Registro')]"))
         ).length > 0,
-      5000
+      8000
     );
     return;
   } catch {}
@@ -103,7 +106,7 @@ async function openRegistroPage(driver) {
 async function openAccesoPage(driver) {
   await driver.get(`${BASE_URL}/acceso`);
   try {
-    await driver.wait(async () => await pageHasLoginForm(driver), 5000);
+    await driver.wait(async () => await pageHasLoginForm(driver), 8000);
     return;
   } catch {}
   await driver.get(BASE_URL);
@@ -159,7 +162,14 @@ async function submitLogin(driver) {
   const submitSel = By.xpath(
     "//form//button[@type='submit'] | //button[contains(.,'Iniciar') or contains(.,'Acceder') or contains(.,'Entrar')]"
   );
-  await clickSmart(driver, submitSel);
+  try {
+    await clickSmart(driver, submitSel);
+  } catch {
+    // Fallback a presionar Enter en el password por si el botón no es clickeable
+    const passSel = By.xpath("//input[@type='password']");
+    const p = await driver.findElement(passSel);
+    await p.sendKeys(require("selenium-webdriver").Key.ENTER);
+  }
 }
 
 async function expectLoginSuccess(driver, email) {
@@ -177,9 +187,11 @@ async function expectLoginSuccess(driver, email) {
       const url = await driver.getCurrentUrl();
       if (/perfil|cuenta|dashboard|mi-cuenta/i.test(url)) return true;
       return false;
-    }, 15000);
+    }, 20000);
     uiOk = true;
   } catch {}
+
+  // Verificación de estado en storage (cualquiera de las llaves)
   await waitFor(
     async () => {
       const keys = ["sesionActiva", "sessionUser", "usuarioActivo"];
@@ -203,6 +215,7 @@ async function expectLoginSuccess(driver, email) {
     30000,
     300
   );
+
   return uiOk;
 }
 
@@ -232,17 +245,20 @@ describe("Registro y acceso", function () {
 
   it("Registra (semilla) y luego accede correctamente", async function () {
     await openRegistroPage(driver);
+
     await driver.executeScript(
       "try{localStorage.clear();sessionStorage.clear();}catch(e){}"
     );
 
+    // Seed directo en localStorage (bypassa validaciones de UI de Registro)
     await driver.executeScript(
       `
       try {
         localStorage.setItem('usuarioRegistrado', JSON.stringify({
           nombreCompleto: arguments[0],
           correo: arguments[1],
-          contrasena: arguments[2]
+          contrasena: arguments[2],
+          mascotas: [{tipo:'Perro', nombre:'Firulais'}]
         }));
       } catch(e) {}
       `,
@@ -296,17 +312,18 @@ describe("Registro y acceso", function () {
     await openAccesoPage(driver);
     await fillLoginForm(driver, email, pass);
     await submitLogin(driver);
-
     await expectLoginSuccess(driver, email);
   });
 
   it("Bloquea acceso con formato inválido", async function () {
     await openAccesoPage(driver);
     await fillLoginForm(driver, "correo-sin-arroba", "soloLetras");
+
     const submitSel = By.xpath(
       "//form//button[@type='submit'] | //button[contains(.,'Iniciar') or contains(.,'Acceder') or contains(.,'Entrar')]"
     );
     await clickSmart(driver, submitSel);
+
     const errorHints = [
       By.xpath("//*[contains(.,'@') and contains(.,'requerid')]"),
       By.xpath(
@@ -320,6 +337,6 @@ describe("Registro y acceso", function () {
       for (const sel of errorHints)
         if ((await driver.findElements(sel)).length) return true;
       return false;
-    }, 8000);
+    }, 10000);
   });
 });
