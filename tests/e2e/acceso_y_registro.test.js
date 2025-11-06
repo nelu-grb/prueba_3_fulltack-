@@ -1,4 +1,3 @@
-// tests/e2e/acceso_y_registro.test.js
 const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 
@@ -6,7 +5,6 @@ const BASE_URL = process.env.BASE_URL || "https://prueba-finalmente.vercel.app";
 
 async function waitFor(fn, timeout = 30000, interval = 250) {
   const start = Date.now();
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const ok = await fn();
