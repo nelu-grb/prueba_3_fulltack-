@@ -246,7 +246,7 @@ export const OFERTAS_PRODUCTO: OfertaProducto[] = [
   { productId: 5, porcentaje: 20 },
   { productId: 14, porcentaje: 35 },
   { productId: 11, porcentaje: 40 },
-  { productId: 1, porcentaje: 10 },
+  { productId: 2, porcentaje: 10 },
   { productId: 8, porcentaje: 25, hasta: "Cyber Week" },
 ];
 
