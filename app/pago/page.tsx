@@ -43,9 +43,11 @@ export default function Pago() {
     const carritoStored = JSON.parse(
       localStorage.getItem("carrito") || "[]"
     ) as { id: number; cantidad: number }[];
+
     const stockStored = JSON.parse(
       sessionStorage.getItem("stockActual") || "{}"
     ) as Record<number, number>;
+
     let carritoDetallado: ItemCarrito[] = carritoStored
       .map((item: { id: number; cantidad: number }) => {
         const details = getProductDetails(item.id);
@@ -56,7 +58,7 @@ export default function Pago() {
           nombre: details.nombre,
           precio: details.precio,
           imagen: details.imagen,
-          stock: stockStored[item.id] ?? 0,
+          stock: (details as any).stock ?? 0,
         } as ItemCarrito | null;
       })
       .filter((x: ItemCarrito | null): x is ItemCarrito => x !== null);
@@ -87,8 +89,16 @@ export default function Pago() {
       }
     }
 
+    const inicial: Record<number, number> = { ...stockStored };
+
+    carritoDetallado.forEach((item) => {
+      if (inicial[item.id] == null) {
+        inicial[item.id] = item.stock;
+      }
+    });
+
     setCarrito(carritoDetallado);
-    setStockActual(stockStored);
+    setStockActual(inicial);
   };
 
   useEffect(() => {
@@ -126,17 +136,25 @@ export default function Pago() {
       prev
         .map((item: ItemCarrito | null) => {
           if (!item || item.id !== id) return item;
-          const delta = nuevaCantidad - item.cantidad;
-          const stock = stockActual[id] || 0;
+
           if (nuevaCantidad < 1) return null;
-          if (delta > 0 && stock < delta) {
+
+          const disponibleActual = stockActual[id] ?? item.stock ?? 0;
+          const delta = nuevaCantidad - item.cantidad;
+
+          if (delta > 0 && disponibleActual < delta) {
             setMensaje({
-              texto: `Stock insuficiente para añadir más. Quedan ${stock} unidades.`,
+              texto: `Stock insuficiente para añadir más. Quedan ${disponibleActual} unidades.`,
               tipo: "danger",
             });
             return item;
           }
-          setStockActual((s) => ({ ...s, [id]: (s[id] || 0) - delta }));
+
+          setStockActual((s) => ({
+            ...s,
+            [id]: disponibleActual - delta,
+          }));
+
           return { ...item, cantidad: nuevaCantidad };
         })
         .filter((x: ItemCarrito | null): x is ItemCarrito => x !== null)
@@ -147,21 +165,34 @@ export default function Pago() {
     setCarrito((prev: ItemCarrito[]) => {
       const it = prev.find((x: ItemCarrito) => x.id === id);
       if (it) {
-        setStockActual((s) => ({ ...s, [id]: (s[id] || 0) + it.cantidad }));
+        const disponibleActual = stockActual[id] ?? it.stock ?? 0;
+        setStockActual((s) => ({
+          ...s,
+          [id]: disponibleActual + it.cantidad,
+        }));
       }
       return prev.filter((x: ItemCarrito) => x.id !== id);
     });
   };
 
-  const handleConfirmarPago = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleConfirmarPago = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
     e.preventDefault();
     setValidated(true);
     const form = e.currentTarget as HTMLFormElement;
+
+    const nombre =
+      (form.querySelector("#nombreComprador") as HTMLInputElement)?.value || "";
     const email =
       (form.querySelector("#emailComprador") as HTMLInputElement)?.value || "";
     const tel =
       (form.querySelector("#telefonoComprador") as HTMLInputElement)?.value ||
       "";
+    const direccion =
+      (form.querySelector("#direccionComprador") as HTMLInputElement)?.value ||
+      "";
+
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     const telOk = /^\+?\d{7,15}$/.test(tel);
 
@@ -188,10 +219,99 @@ export default function Pago() {
       return;
     }
 
-    sessionStorage.setItem(
-      "kp_success_order",
-      JSON.stringify({ items: carrito, subtotal, descuento, total })
-    );
+    const payload = {
+      subtotal,
+      descuento,
+      total,
+      estado: "EXITOSO",
+      motivo: null,
+      nombreComprador: nombre,
+      emailComprador: email,
+      telefonoComprador: tel,
+      direccionComprador: direccion,
+      items: carrito.map((item) => ({
+        productoId: item.id,
+        nombre: item.nombre,
+        precio: item.precio,
+        cantidad: item.cantidad,
+        imagen: item.imagen,
+      })),
+    };
+
+    try {
+      const resp = await fetch(
+        "https://pago-kittipatitassuaves3-production.up.railway.app/pagos",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      let pagoBackend: any | null = null;
+      try {
+        if (resp.ok) {
+          pagoBackend = await resp.json();
+        } else {
+          console.error("Error pago:", resp.status, await resp.text());
+        }
+      } catch {
+        pagoBackend = null;
+      }
+
+      sessionStorage.setItem(
+        "kp_success_order",
+        JSON.stringify({
+          items: carrito,
+          subtotal: pagoBackend?.subtotal ?? subtotal,
+          descuento: pagoBackend?.descuento ?? descuento,
+          total: pagoBackend?.total ?? total,
+          id: pagoBackend?.id ?? null,
+          estado: pagoBackend?.estado ?? "EXITOSO",
+          fechaHora: pagoBackend?.fechaHora ?? null,
+          nombreComprador: nombre,
+          emailComprador: email,
+          telefonoComprador: tel,
+          direccionComprador: direccion,
+        })
+      );
+
+      try {
+        await fetch(
+          "https://inventario-kittipatitassuaves3-production.up.railway.app/inventario/ajustar-stock",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(
+              carrito.map((item) => ({
+                productoId: item.id,
+                cantidad: item.cantidad,
+              }))
+            ),
+          }
+        );
+      } catch (err) {
+        console.error("Error ajustando stock en inventario:", err);
+      }
+    } catch (err) {
+      console.error("Error llamando al microservicio de pago:", err);
+      sessionStorage.setItem(
+        "kp_success_order",
+        JSON.stringify({
+          items: carrito,
+          subtotal,
+          descuento,
+          total,
+          id: null,
+          estado: "EXITOSO",
+          fechaHora: null,
+          nombreComprador: nombre,
+          emailComprador: email,
+          telefonoComprador: tel,
+          direccionComprador: direccion,
+        })
+      );
+    }
 
     const totalCL = encodeURIComponent(total.toString());
     const itemsCL = encodeURIComponent(items.toString());
@@ -206,7 +326,8 @@ export default function Pago() {
     const lineSub = item.precio * item.cantidad;
     const lineDesc = Math.round(lineSub * (off / 100));
     const lineTotal = lineSub - lineDesc;
-    const isOutOfStock = stockActual[item.id] <= 0;
+    const disponibleActual = stockActual[item.id] ?? item.stock ?? 0;
+    const isOutOfStock = disponibleActual <= 0;
 
     return (
       <Card

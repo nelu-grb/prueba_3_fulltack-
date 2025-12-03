@@ -9,10 +9,32 @@ import {
   Alert,
   Form,
 } from "react-bootstrap";
-import { todosLosProductos, Producto } from "../app/Data";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import "@fortawesome/fontawesome-free/css/all.min.css";
+
+const API_BASE_URL =
+  "https://kittypatitasuaves3inventario-production.up.railway.app";
+const API_URL = `${API_BASE_URL}/inventario/productos`;
+
+interface Producto {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  precio: number;
+  stock: number;
+  categoria?: string;
+  imagen?: string;
+}
+
+const getImageSrc = (imagen?: string) => {
+  if (!imagen) return "/placeholder.png";
+  const clean = imagen
+    .trim()
+    .replace(/^\/?public\//, "")
+    .replace(/^\/?/, "");
+  return `/${clean}`;
+};
 
 const DetalleProducto: React.FC = () => {
   const router = useRouter();
@@ -24,22 +46,33 @@ const DetalleProducto: React.FC = () => {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  const buscarProductoPorId = (id: number): Producto | undefined => {
-    const todos = [
-      ...todosLosProductos.juguetes,
-      ...todosLosProductos.accesorios,
-      ...todosLosProductos.alimentos,
-    ];
-    return todos.find((p) => p.id === id);
-  };
-
   useEffect(() => {
-    setCargando(true);
-    if (productId !== undefined && !isNaN(productId)) {
-      const prod = buscarProductoPorId(productId);
-      setProducto(prod || null);
+    if (productId === undefined || Number.isNaN(productId)) {
+      setProducto(null);
+      setCargando(false);
+      return;
     }
-    setCargando(false);
+
+    const fetchProducto = async () => {
+      try {
+        setCargando(true);
+        const res = await fetch(`${API_URL}/${productId}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          setProducto(null);
+        } else {
+          const data: Producto = await res.json();
+          setProducto(data);
+        }
+      } catch {
+        setProducto(null);
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    fetchProducto();
   }, [productId]);
 
   const handleAgregarACarrito = () => {
@@ -103,7 +136,7 @@ const DetalleProducto: React.FC = () => {
             <Row className="g-4">
               <Col md={6}>
                 <Card.Img
-                  src={producto.imagen}
+                  src={getImageSrc(producto.imagen)}
                   alt={producto.nombre}
                   className="rounded shadow-sm"
                   style={{ maxHeight: "400px", objectFit: "cover" }}

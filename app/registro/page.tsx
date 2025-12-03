@@ -12,6 +12,9 @@ import {
 } from "react-bootstrap";
 import { comunasPorRegion } from "../Data";
 
+const API_BASE_URL =
+  "https://gateway-kittipatitassuaves3-production.up.railway.app";
+
 interface Mascota {
   tipo: string;
   nombre: string;
@@ -54,8 +57,11 @@ const Registro = () => {
   const regexNombre = /^[A-Za-z\s]+$/;
   const regexCorreoRegistro =
     /^(?=.{1,100}$)([a-zA-Z0-9._%+-]+@(duoc\.cl|profesor\.duoc\.cl|gmail\.com))$/;
+
+  // aquí agregué el "." como símbolo permitido y requerido
   const patronContrasena =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&!*?])[A-Za-z\d@#$%^&!*?]{8,}$/;
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.@#$%^&!*?])[A-Za-z\d.@#$%^&!*?]{8,}$/;
+
   const regexTelefono = /^\+?[0-9]{8,15}$/;
 
   useEffect(() => {
@@ -128,25 +134,55 @@ const Registro = () => {
     return valido;
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setValidated(true);
     setMensaje(null);
+
     const esValido = validarFormulario();
-    if (esValido) {
-      const mascotasParaGuardar = mascotas.filter(
-        (m) => m.tipo !== "" && m.nombre.trim() !== ""
-      );
-      const usuarioRegistrado = {
-        nombreCompleto: formData.nombreCompleto.trim(),
-        correo: formData.correoElectronico.trim(),
-        contrasena: formData.contrasenaRegistro,
-        mascotas: mascotasParaGuardar,
-      };
-      localStorage.setItem(
-        "usuarioRegistrado",
-        JSON.stringify(usuarioRegistrado)
-      );
+    if (!esValido) {
+      setMensaje({
+        texto: "Por favor, corrige los errores en el formulario de registro.",
+        tipo: "danger",
+      });
+      return;
+    }
+
+    const mascotasParaGuardar = mascotas.filter(
+      (m) => m.tipo !== "" && m.nombre.trim() !== ""
+    );
+
+    const payload = {
+      nombreCompleto: formData.nombreCompleto.trim(),
+      correoElectronico: formData.correoElectronico.trim(),
+      contrasenaRegistro: formData.contrasenaRegistro,
+      telefono: formData.telefono.trim() || null,
+      region: formData.region || null,
+      comuna: formData.comuna || null,
+      mascotas: mascotasParaGuardar,
+    };
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/auth/registro`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await resp.text();
+
+      if (!resp.ok) {
+        setMensaje({
+          texto:
+            text ||
+            "No se pudo completar el registro. Intenta nuevamente más tarde.",
+          tipo: "danger",
+        });
+        return;
+      }
+
       setMensaje({
         texto:
           "¡Registro exitoso en KittyPatitasSuaves! Ahora puedes iniciar sesión.",
@@ -155,9 +191,9 @@ const Registro = () => {
       setFormData(initialFormData);
       setMascotas([{ tipo: "", nombre: "" }]);
       setValidated(false);
-    } else {
+    } catch (error) {
       setMensaje({
-        texto: "Por favor, corrige los errores en el formulario de registro.",
+        texto: "Error de conexión con el servidor. Intenta más tarde.",
         tipo: "danger",
       });
     }

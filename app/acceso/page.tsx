@@ -1,29 +1,27 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
-  Alert,
-} from "react-bootstrap";
+import { Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
 import Link from "next/link";
+
+const API_BASE_URL =
+  "https://gateway-kittipatitassuaves3-production.up.railway.app";
 
 interface Mensaje {
   texto: string;
   tipo: "success" | "danger";
 }
 
-// Interfaz para el objeto completo guardado en localStorage
+interface Mascota {
+  tipo: string;
+  nombre: string;
+}
+
 interface UsuarioCompleto {
-  nombreCompleto: string;
-  correo: string;
-  contrasena: string;
-  // Asumimos que los datos de mascota se guardan aquí también
-  mascotas?: { tipo: string; nombre: string }[];
+  id?: number;
+  nombreCompleto?: string;
+  correoElectronico?: string;
+  mascotas?: Mascota[];
 }
 
 const Acceso: React.FC = () => {
@@ -35,7 +33,7 @@ const Acceso: React.FC = () => {
   const regexCorreoAcceso =
     /^(?=.{1,100}$)([a-zA-Z0-9._%+-]+@(duoc\.cl|profesor\.duoc\.cl|gmail\.com))$/;
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setValidated(true);
     setMensaje(null);
@@ -50,33 +48,41 @@ const Acceso: React.FC = () => {
       return;
     }
 
-    const usuarioString = localStorage.getItem("usuarioRegistrado");
-
-    if (!usuarioString) {
-      setMensaje({
-        texto: "No hay usuarios registrados. Por favor, regístrate primero.",
-        tipo: "danger",
+    try {
+      const resp = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          correoElectronico: correoAcceso,
+          contrasena: contrasenaAcceso,
+        }),
       });
-      return;
-    }
 
-    // Usamos la interfaz UsuarioCompleto para leer todos los datos
-    const usuarioRegistrado: UsuarioCompleto = JSON.parse(usuarioString);
+      const text = await resp.text();
 
-    if (
-      usuarioRegistrado.correo === correoAcceso &&
-      usuarioRegistrado.contrasena === contrasenaAcceso
-    ) {
+      if (!resp.ok) {
+        setMensaje({
+          texto:
+            text ||
+            "Credenciales incorrectas. Verifica tu correo y contraseña.",
+          tipo: "danger",
+        });
+        return;
+      }
+
+      const usuarioRegistrado: UsuarioCompleto = JSON.parse(text);
+
       const nombreUsuario =
         usuarioRegistrado.nombreCompleto?.trim().split(" ")[0] || "Usuario";
-      const correoUsuario = usuarioRegistrado.correo;
+      const correoUsuario = usuarioRegistrado.correoElectronico || correoAcceso;
 
       let mensajeMascotas = "";
 
-      // 🎯 LÓGICA DE MASCOTAS Y CORREO ENTRE PARÉNTESIS
       if (usuarioRegistrado.mascotas && usuarioRegistrado.mascotas.length > 0) {
         const mascotasList = usuarioRegistrado.mascotas
-          .filter((m) => m.tipo && m.nombre) // Solo mascotas que tengan tipo y nombre
+          .filter((m) => m.tipo && m.nombre)
           .map((m) => `${m.tipo}: ${m.nombre}`)
           .join(", ");
 
@@ -87,17 +93,18 @@ const Acceso: React.FC = () => {
 
       const mensajeExito = `¡Inicio de sesión exitoso! Bienvenido, ${nombreUsuario} (${correoUsuario})${mensajeMascotas}`;
 
-      setMensaje({ texto: mensajeExito, tipo: "success" });
+      localStorage.setItem("authData", JSON.stringify(usuarioRegistrado));
+      localStorage.setItem("isLoggedIn", "1");
       sessionStorage.setItem(
         "sesionActiva",
-        JSON.stringify({ correo: correoAcceso, activo: true })
+        JSON.stringify({ correo: correoUsuario, activo: true })
       );
-
-      localStorage.setItem("isLoggedIn", "1");
       window.dispatchEvent(new Event("authChanged"));
-    } else {
+
+      setMensaje({ texto: mensajeExito, tipo: "success" });
+    } catch (error) {
       setMensaje({
-        texto: "Credenciales incorrectas. Verifica tu correo y contraseña.",
+        texto: "Error de conexión con el servidor. Intenta más tarde.",
         tipo: "danger",
       });
     }

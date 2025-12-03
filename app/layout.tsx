@@ -19,6 +19,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KittyPatitasSuaves",
   description: "Todo para tu mascota, tu tienda de confianza.",
+  icons: {
+    icon: "/huellas.png",
+  },
 };
 
 export default function RootLayout({
