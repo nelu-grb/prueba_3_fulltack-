@@ -1,6 +1,6 @@
 export async function getProductos() {
   try {
-    const res = await fetch("https://inventario-kittipatitassuaves3-production.up.railway.app/inventario/productos", {
+    const res = await fetch("https://kittypatitasuaves3-fin.onrender.com/inventario/productos", {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

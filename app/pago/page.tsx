@@ -240,7 +240,7 @@ export default function Pago() {
 
     try {
       const resp = await fetch(
-        "https://pago-kittipatitassuaves3-production.up.railway.app/pagos",
+        "https://kittypatitasuaves-pago.onrender.com/pagos",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

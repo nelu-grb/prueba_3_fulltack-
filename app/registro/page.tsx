@@ -13,7 +13,7 @@ import {
 import { comunasPorRegion } from "../Data";
 
 const API_BASE_URL =
-  "https://gateway-kittipatitassuaves3-production.up.railway.app";
+  "https://kittypatitasuaves3-fin.onrender.com";
 
 interface Mascota {
   tipo: string;

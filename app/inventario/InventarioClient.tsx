@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 const API_BASE_URL =
-  "https://inventario-kittipatitassuaves3-production.up.railway.app";
+  "https://kittypatitasuaves-inventario.onrender.com";
 const API_URL = `${API_BASE_URL}/inventario/productos`;
 
 interface Producto {
